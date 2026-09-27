@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, apiFetch, type Branch, type InventoryItem, type InventoryResponse } from "@/lib/api"
+import { formatQuantity } from "@/lib/quantity"
 
 const numberFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 })
 
@@ -33,7 +34,7 @@ function InventoryRow({ item }: { item: InventoryItem }) {
       <td className="py-4 pr-5 text-muted-foreground">{item.branch_name}<br />{item.warehouse_name}</td>
       <td className="py-4 pr-5">{item.lot_no}</td>
       <td className="py-4 pr-5">{formatExpiry(item.expires_on)}</td>
-      <td className="py-4 pr-5 font-medium">{numberFormat.format(Number(item.quantity))} {item.unit_name}</td>
+      <td className="py-4 pr-5 font-medium">{formatQuantity(item.quantity)} {item.unit_name}</td>
       <td className="py-4"><Badge variant={statusVariant(item.status)}>{item.status}</Badge></td>
     </tr>
   )

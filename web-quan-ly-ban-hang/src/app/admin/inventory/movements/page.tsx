@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowDownLeft, ArrowUpRight, History, RotateCw, Search } fro
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, apiFetch, type Branch } from "@/lib/api"
+import { formatQuantityAbsolute, quantityIsPositive } from "@/lib/quantity"
 
 type Movement = {
   id: string
@@ -33,7 +34,6 @@ type MovementResponse = {
   pagination: { current_page: number; last_page: number; total: number }
 }
 
-const quantityFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 })
 const dateFormat = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" })
 
 function sourceLabel(row: Movement) {
@@ -103,13 +103,13 @@ export default function InventoryMovementsPage() {
           <thead className="border-b border-black/8 text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="py-3 pr-5 font-medium">Thời điểm</th><th className="py-3 pr-5 font-medium">Vật tư / lô</th><th className="py-3 pr-5 font-medium">Chi nhánh / kho</th><th className="py-3 pr-5 font-medium">Chứng từ</th><th className="py-3 text-right font-medium">Thay đổi</th></tr></thead>
           <tbody>{!loading && result?.data.map((row) => {
             const source = sourceLabel(row)
-            const incoming = Number(row.quantity_delta) > 0
+            const incoming = quantityIsPositive(row.quantity_delta)
             return <tr key={row.id} className="border-b border-black/6 last:border-0">
               <td className="py-4 pr-5 whitespace-nowrap text-muted-foreground">{dateFormat.format(new Date(row.occurred_at))}</td>
               <td className="py-4 pr-5"><p className="font-semibold">{row.product_name}</p><p className="mt-1 text-xs text-muted-foreground">{row.product_code} · Lô {row.lot_no}</p></td>
               <td className="py-4 pr-5">{row.branch_name}<br /><span className="text-muted-foreground">{row.warehouse_name}</span></td>
               <td className="py-4 pr-5"><p className="text-xs text-muted-foreground">{source.type}</p>{source.href ? <Link href={source.href} className="font-semibold text-primary hover:underline">{source.number}</Link> : <span className="font-semibold">{source.number}</span>}</td>
-              <td className={`py-4 text-right font-semibold whitespace-nowrap ${incoming ? "text-emerald-700" : "text-amber-800"}`}><span className="inline-flex items-center gap-1">{incoming ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}{incoming ? "+" : "−"}{quantityFormat.format(Math.abs(Number(row.quantity_delta)))} {row.unit_name}</span></td>
+              <td className={`py-4 text-right font-semibold whitespace-nowrap ${incoming ? "text-emerald-700" : "text-amber-800"}`}><span className="inline-flex items-center gap-1">{incoming ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}{incoming ? "+" : "−"}{formatQuantityAbsolute(row.quantity_delta)} {row.unit_name}</span></td>
             </tr>
           })}</tbody>
         </table>
