@@ -290,6 +290,7 @@ class InventoryAccessTest extends TestCase
     public function test_guest_cannot_read_inventory(): void
     {
         $this->getJson('/api/inventory')->assertUnauthorized();
+        $this->get('/api/inventory')->assertUnauthorized();
     }
 
     public function test_manager_sees_only_assigned_branch(): void
