@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\CatalogPermission;
+use App\Support\DecimalId;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,7 @@ class CatalogWriteController extends Controller
         $data = $request->validate([
             'code' => ['required', 'string', 'max:40', Rule::unique('product_categories', 'code')],
             'name' => ['required', 'string', 'max:160'],
-            'parent_id' => ['nullable', 'integer', Rule::exists('product_categories', 'id')],
+            'parent_id' => ['bail', 'nullable', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],
             'is_active' => ['sometimes', 'boolean'],
         ]);
         $this->requireActive('product_categories', $data['parent_id'] ?? null, 'parent_id');
@@ -37,7 +38,7 @@ class CatalogWriteController extends Controller
         $data = $request->validate([
             'code' => ['sometimes', 'required', 'string', 'max:40', Rule::unique('product_categories', 'code')->ignore($id)],
             'name' => ['sometimes', 'required', 'string', 'max:160'],
-            'parent_id' => ['sometimes', 'nullable', 'integer', Rule::exists('product_categories', 'id')],
+            'parent_id' => ['bail', 'sometimes', 'nullable', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
@@ -116,8 +117,8 @@ class CatalogWriteController extends Controller
             'sale_price' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'expiry_warning_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
-            'category_id' => ['required', 'integer', Rule::exists('product_categories', 'id')],
-            'unit_id' => ['required', 'integer', Rule::exists('units', 'id')],
+            'category_id' => ['bail', 'required', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],
+            'unit_id' => ['bail', 'required', 'string', DecimalId::rule(), Rule::exists('units', 'id')],
             'is_active' => ['sometimes', 'boolean'],
         ]);
         $this->requireActive('product_categories', $data['category_id'], 'category_id');
@@ -147,8 +148,8 @@ class CatalogWriteController extends Controller
             'sale_price' => ['sometimes', 'required', 'numeric', 'min:0', 'decimal:0,2'],
             'tax_rate' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'expiry_warning_days' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:3650'],
-            'category_id' => ['sometimes', 'required', 'integer', Rule::exists('product_categories', 'id')],
-            'unit_id' => ['sometimes', 'required', 'integer', Rule::exists('units', 'id')],
+            'category_id' => ['bail', 'sometimes', 'required', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],
+            'unit_id' => ['bail', 'sometimes', 'required', 'string', DecimalId::rule(), Rule::exists('units', 'id')],
             'is_active' => ['sometimes', 'boolean'],
         ]);
         $product = DB::table('products')->find($id);

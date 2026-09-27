@@ -1,15 +1,15 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight, PackageCheck, ShieldCheck, Truck } from "lucide-react"
+import { ArrowRight, PackageCheck, ShieldCheck, ShoppingBag } from "lucide-react"
 import { ProductCard } from "@/components/shop/product-card"
 import { StorefrontMotion } from "@/components/storefront-motion"
 import { products } from "@/lib/mock-data"
 
 export default function ShopPage() {
   const features = [
-    { icon: PackageCheck, title: "Thông tin rõ ràng", text: "Theo dõi nhóm hàng, số lô và hạn sử dụng." },
-    { icon: Truck, title: "Chọn hàng thuận tiện", text: "Lưu danh sách vật tư quan tâm trên thiết bị để xem lại." },
-    { icon: ShieldCheck, title: "Hỗ trợ có trách nhiệm", text: "Nội dung sử dụng hiển thị theo thông tin sản phẩm." },
+    { icon: PackageCheck, title: "Khám phá theo nhu cầu", text: "Tìm nhanh nhóm phân bón, hạt giống, dụng cụ và sản phẩm chăm sóc cây." },
+    { icon: ShoppingBag, title: "Lưu danh sách quan tâm", text: "Thêm vật tư vào giỏ tham khảo và xem lại ngay trên thiết bị này." },
+    { icon: ShieldCheck, title: "Thông tin minh bạch", text: "Danh mục và giá chỉ minh họa; cửa hàng chưa mở đặt hàng trực tuyến." },
   ]
 
   return (
@@ -28,7 +28,7 @@ export default function ShopPage() {
             </div>
             <div data-visual className="relative lg:col-span-5">
               <div className="relative aspect-[4/5] overflow-hidden rounded-[2.25rem]">
-                <Image src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1400&q=90" alt="Cánh đồng và cây trồng" fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 42vw" />
+                <Image src="/images/shop-hero-agri-supplies.png" alt="Vật tư canh tác và cây giống trong vườn ươm" fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 42vw" />
               </div>
               <div className="absolute -bottom-5 -left-5 max-w-[230px] rounded-2xl bg-[#e8c675] p-5 shadow-xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.15em]">Xem trước danh mục</p>
@@ -62,8 +62,8 @@ export default function ShopPage() {
         </section>
 
         <section className="page-shell pb-24">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Gợi ý hôm nay</p>
-          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Vật tư được quan tâm</h2>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Khám phá thêm</p>
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Một vài vật tư minh họa</h2>
           <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {products.slice(0, 3).map((product) => <ProductCard key={product.slug} product={product} />)}
           </div>

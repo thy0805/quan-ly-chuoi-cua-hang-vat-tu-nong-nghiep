@@ -8,6 +8,7 @@
   "scripts": {
     "once": "node --env-file=../api-laravel/.env src/worker.mjs --once",
     "start": "node --env-file=../api-laravel/.env src/worker.mjs",
+    "rebuild:snapshots": "node --env-file=../api-laravel/.env src/rebuild-snapshots.mjs",
     "test": "node --test src/*.test.mjs"
   },
   "dependencies": {

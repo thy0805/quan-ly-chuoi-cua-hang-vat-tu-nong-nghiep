@@ -305,6 +305,8 @@ class InventoryAccessTest extends TestCase
             ->assertJsonPath('summary.inventory_rows', 1);
 
         $this->getJson('/api/inventory?branch_id='.$second)->assertForbidden();
+        $this->getJson('/api/inventory?branch_id=9223372036854775808')->assertUnprocessable();
+        $this->getJson('/api/inventory?branch_id=01')->assertUnprocessable();
     }
 
     public function test_owner_sees_branches_in_same_chain_only(): void
@@ -409,14 +411,16 @@ class InventoryAccessTest extends TestCase
         $chainA = DB::table('branches')->where('id', $first)->value('chain_id');
         $chainB = DB::table('branches')->where('id', $third)->value('chain_id');
 
-        $this->actingAs($owner)->postJson('/api/suppliers', ['chain_id' => $chainA, 'name' => 'Nhà cung cấp A'])
+        $this->actingAs($owner)->postJson('/api/suppliers', ['chain_id' => (string) $chainA, 'name' => 'Nhà cung cấp A'])
             ->assertCreated();
-        $this->postJson('/api/suppliers', ['chain_id' => $chainB, 'name' => 'Nhà cung cấp B'])
+        $this->postJson('/api/suppliers', ['chain_id' => (string) $chainB, 'name' => 'Nhà cung cấp B'])
             ->assertForbidden();
+        $this->postJson('/api/suppliers', ['chain_id' => $chainA, 'name' => 'Sai kiểu ID'])
+            ->assertUnprocessable()->assertJsonValidationErrors('chain_id');
 
         $this->actingAs($manager)->getJson('/api/suppliers')
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Nhà cung cấp A');
-        $this->postJson('/api/suppliers', ['chain_id' => $chainA, 'name' => 'Không được'])
+        $this->postJson('/api/suppliers', ['chain_id' => (string) $chainA, 'name' => 'Không được'])
             ->assertForbidden();
 
         $this->actingAs($staff)->getJson('/api/suppliers')->assertForbidden();
@@ -434,9 +438,9 @@ class InventoryAccessTest extends TestCase
 
         $draft = function (string $quantity, string $cost) use ($supplier, $warehouse, $product): array {
             return [
-                'supplier_id' => $supplier,
-                'warehouse_id' => $warehouse,
-                'items' => [['product_id' => $product, 'lot_no' => 'LO-MOI', 'quantity' => $quantity, 'unit_cost' => $cost]],
+                'supplier_id' => (string) $supplier,
+                'warehouse_id' => (string) $warehouse,
+                'items' => [['product_id' => (string) $product, 'lot_no' => 'LO-MOI', 'quantity' => $quantity, 'unit_cost' => $cost]],
             ];
         };
 
@@ -486,13 +490,13 @@ class InventoryAccessTest extends TestCase
         $chainB = DB::table('branches')->where('id', $third)->value('chain_id');
 
         $id = $this->actingAs($owner)->postJson('/api/customers', [
-            'chain_id' => $chainA, 'name' => 'Hộ A', 'customer_type' => 'farmer',
+            'chain_id' => (string) $chainA, 'name' => 'Hộ A', 'customer_type' => 'farmer',
         ])->assertCreated()->json('data.id');
         $this->postJson('/api/customers', [
-            'chain_id' => $chainB, 'name' => 'Ngoài chuỗi', 'customer_type' => 'farmer',
+            'chain_id' => (string) $chainB, 'name' => 'Ngoài chuỗi', 'customer_type' => 'farmer',
         ])->assertForbidden();
         $this->postJson('/api/customers', [
-            'chain_id' => $chainA, 'name' => 'Sai loại', 'customer_type' => 'unknown',
+            'chain_id' => (string) $chainA, 'name' => 'Sai loại', 'customer_type' => 'unknown',
         ])->assertUnprocessable();
         $this->patchJson('/api/customers/'.$id, ['name' => 'Hộ A mới'])->assertOk();
 
@@ -502,7 +506,7 @@ class InventoryAccessTest extends TestCase
         $this->actingAs($staff)->getJson('/api/customers')
             ->assertOk()->assertJsonCount(1, 'data');
         $this->postJson('/api/customers', [
-            'chain_id' => $chainA, 'name' => 'Không được', 'customer_type' => 'small_dealer',
+            'chain_id' => (string) $chainA, 'name' => 'Không được', 'customer_type' => 'small_dealer',
         ])->assertForbidden();
         $this->getJson('/api/customers?chain_id='.$chainB)->assertForbidden();
     }
@@ -551,15 +555,15 @@ class InventoryAccessTest extends TestCase
             'chain_id' => DB::table('branches')->where('id', $branch)->value('chain_id'), 'name' => 'NCC QA',
         ]);
         $draft = fn (string $lot) => [
-            'supplier_id' => $supplier, 'warehouse_id' => $warehouse,
-            'items' => [['product_id' => $product, 'lot_no' => $lot, 'quantity' => '2.000', 'unit_cost' => '100.00']],
+            'supplier_id' => (string) $supplier, 'warehouse_id' => (string) $warehouse,
+            'items' => [['product_id' => (string) $product, 'lot_no' => $lot, 'quantity' => '2.000', 'unit_cost' => '100.00']],
         ];
 
         $this->actingAs($staff)->postJson('/api/purchase-receipts', $draft('LO-MOI') + ['total_amount' => '1.00'])
             ->assertUnprocessable()->assertJsonValidationErrors('total_amount');
         $this->postJson('/api/purchase-receipts', [
-            'supplier_id' => $supplier, 'warehouse_id' => $warehouse,
-            'items' => [['product_id' => $product, 'lot_no' => 'LO-MOI', 'quantity' => '-2', 'unit_cost' => '100.00']],
+            'supplier_id' => (string) $supplier, 'warehouse_id' => (string) $warehouse,
+            'items' => [['product_id' => (string) $product, 'lot_no' => 'LO-MOI', 'quantity' => '-2', 'unit_cost' => '100.00']],
         ])->assertUnprocessable()->assertJsonValidationErrors('items.0.quantity');
 
         $rejected = $this->postJson('/api/purchase-receipts', $draft('LO-MOI'))->assertCreated()->json('id');
@@ -594,20 +598,20 @@ class InventoryAccessTest extends TestCase
         $this->assertFalse($listedOwner['assignments'][0]['can_revoke']);
         $newId = $this->postJson('/api/users', [
             'username' => 'nguoi_moi', 'password' => 'mat_khau_tam_123',
-            'branch_id' => $first, 'role_code' => 'sales_staff', 'is_catalog_admin' => true,
+            'branch_id' => (string) $first, 'role_code' => 'sales_staff', 'is_catalog_admin' => true,
         ])->assertUnprocessable()->json('id');
         $this->assertNull($newId);
         $newId = $this->postJson('/api/users', [
             'username' => 'nguoi_moi', 'password' => 'mat_khau_tam_123',
-            'branch_id' => $first, 'role_code' => 'sales_staff',
+            'branch_id' => (string) $first, 'role_code' => 'sales_staff',
         ])->assertCreated()->json('id');
         $this->assertFalse((bool) DB::table('users')->where('id', $newId)->value('is_catalog_admin'));
 
         $firstGrant = $this->postJson('/api/users/'.$manager->id.'/assignments', [
-            'branch_id' => $second, 'role_code' => 'chain_owner',
+            'branch_id' => (string) $second, 'role_code' => 'chain_owner',
         ])->assertOk()->json('id');
         $secondGrant = $this->postJson('/api/users/'.$manager->id.'/assignments', [
-            'branch_id' => $second, 'role_code' => 'chain_owner',
+            'branch_id' => (string) $second, 'role_code' => 'chain_owner',
         ])->assertOk()->json('id');
         $this->assertSame($firstGrant, $secondGrant);
         $this->getJson('/api/users?search=nguoi_moi')->assertOk()->assertJsonCount(1, 'data');
@@ -683,6 +687,96 @@ class InventoryAccessTest extends TestCase
         $this->postJson('/api/sales-orders/'.$third.'/confirm', ['amount' => '0'])->assertUnprocessable();
         $this->assertSame(1, DB::table('invoices')->count());
         $this->assertSame(1, DB::table('stock_movements')->where('sales_order_id', $orderId)->count());
+    }
+
+    public function test_sales_report_uses_confirmed_snapshots_payments_local_day_and_branch_scope(): void
+    {
+        [$first, $second, $foreign] = $this->makeInventory();
+        $owner = $this->makeUser('chain_owner', $first);
+        $lot = DB::table('product_lots')->value('id');
+        $soldAt = '2026-09-26 17:30:00';
+        foreach ([[$first, '189.00', '9.00', '120.00', '100.00'], [$second, '50.00', '0.00', '20.00', null], [$foreign, '999.00', '0.00', '100.00', null]] as $index => [$branch, $total, $tax, $cost, $paid]) {
+            $warehouse = DB::table('warehouses')->where('branch_id', $branch)->value('id');
+            $orderId = DB::table('sales_orders')->insertGetId([
+                'branch_id' => $branch, 'warehouse_id' => $warehouse, 'created_by' => $owner->id,
+                'order_no' => 'REPORT-'.$index, 'status' => 'confirmed', 'total_amount' => $total, 'sold_at' => $soldAt,
+            ]);
+            DB::table('sales_order_items')->insert([
+                'order_id' => $orderId, 'lot_id' => $lot,
+                'quantity' => $index === 0 ? '2.000' : '1.000',
+                'unit_price' => $index === 0 ? '100.00' : $total,
+                'discount_amount' => $index === 0 ? '20.00' : '0.00',
+                'line_total' => $index === 0 ? '180.00' : $total,
+                'tax_rate_snapshot' => $index === 0 ? '5.00' : '0.00',
+                'tax_amount' => $tax, 'unit_cost_snapshot' => $index === 0 ? '60.000000' : $cost,
+                'cost_total' => $cost,
+            ]);
+            $invoiceId = DB::table('invoices')->insertGetId([
+                'sales_order_id' => $orderId, 'invoice_no' => 'REPORT-INV-'.$index,
+                'subtotal' => $index === 0 ? '200.00' : $total,
+                'discount_amount' => $index === 0 ? '20.00' : '0.00',
+                'tax_amount' => $tax, 'total_amount' => $total, 'status' => 'issued',
+            ]);
+            if ($paid !== null) {
+                DB::table('payments')->insert([
+                    'invoice_id' => $invoiceId, 'method' => 'cash', 'amount' => $paid, 'status' => 'completed',
+                ]);
+                DB::table('payments')->insert([
+                    'invoice_id' => $invoiceId, 'method' => 'cash', 'amount' => '40.00', 'status' => 'pending',
+                ]);
+            }
+        }
+        $url = '/api/reports/sales?period=day&date=2026-09-27';
+        $this->actingAs($owner)->getJson($url)->assertOk()
+            ->assertJsonPath('timezone', 'Asia/Ho_Chi_Minh')
+            ->assertJsonPath('summary.invoice_count', 2)
+            ->assertJsonPath('summary.gross_sales', '250.00')
+            ->assertJsonPath('summary.total_discount', '20.00')
+            ->assertJsonPath('summary.net_sales', '230.00')
+            ->assertJsonPath('summary.total_tax', '9.00')
+            ->assertJsonPath('summary.invoice_total', '239.00')
+            ->assertJsonPath('summary.cogs', '140.00')
+            ->assertJsonPath('summary.gross_profit', '90.00')
+            ->assertJsonPath('summary.amount_collected', '100.00')
+            ->assertJsonPath('summary.receivable_remaining', '139.00')
+            ->assertJsonCount(2, 'by_branch');
+        $this->getJson($url.'&branch_id='.$first)->assertOk()->assertJsonPath('summary.invoice_total', '189.00');
+        $this->getJson($url.'&branch_id='.$foreign)->assertForbidden();
+        $this->getJson($url.'&branch_id=9223372036854775808')->assertUnprocessable();
+        $this->getJson('/api/reports/sales?period=day&date=2026-09-26')->assertJsonPath('summary.invoice_count', 0);
+        $this->getJson('/api/reports/sales?period=month&date=2026-09-01')->assertJsonPath('summary.invoice_count', 2);
+        $staff = $this->makeUser('sales_staff', $first);
+        $this->actingAs($staff)->getJson('/api/me')->assertJsonPath('user.can_view_reports', false);
+        $this->getJson($url)->assertForbidden();
+        $manager = $this->makeUser('branch_manager', $first);
+        $this->actingAs($manager)->getJson('/api/me')->assertJsonPath('user.can_view_reports', true);
+        $this->getJson($url)->assertOk()->assertJsonPath('summary.invoice_count', 1);
+        $this->getJson($url.'&branch_id='.$second)->assertForbidden();
+        $this->actingAs($owner);
+        $firstOrder = DB::table('sales_orders')->where('branch_id', $first)->value('id');
+        DB::table('sales_order_items')->where('order_id', $firstOrder)->update(['cost_total' => '999.00']);
+        $this->getJson($url)->assertJsonPath('summary.cogs', '140.00')
+            ->assertJsonPath('summary.gross_profit', '90.00');
+        DB::table('sales_order_items')->where('order_id', $firstOrder)->update(['unit_cost_snapshot' => null, 'cost_total' => null]);
+        $this->getJson($url)->assertJsonPath('summary.incomplete_cost_count', 1)
+            ->assertJsonPath('summary.cogs', null)->assertJsonPath('summary.gross_profit', null);
+        DB::table('sales_order_items')->where('order_id', $firstOrder)->update(['tax_rate_snapshot' => null, 'tax_amount' => null]);
+        $this->getJson($url)->assertJsonPath('summary.incomplete_tax_count', 1)
+            ->assertJsonPath('summary.total_tax', null)->assertJsonPath('summary.invoice_total', null)
+            ->assertJsonPath('summary.receivable_remaining', null);
+        $ownerRole = DB::table('user_role_assignments')->where('user_id', $owner->id)->value('role_id');
+        DB::table('user_role_assignments')->insert([
+            'user_id' => $owner->id, 'role_id' => $ownerRole, 'branch_id' => $foreign,
+            'starts_on' => now()->subDay()->toDateString(), 'status' => 'active',
+        ]);
+        $firstChain = (string) DB::table('branches')->where('id', $first)->value('chain_id');
+        $foreignChain = (string) DB::table('branches')->where('id', $foreign)->value('chain_id');
+        $this->getJson('/api/me')->assertJsonCount(2, 'report_chains');
+        $this->getJson($url)->assertUnprocessable()->assertJsonValidationErrors('chain_id');
+        $this->getJson($url.'&chain_id='.$firstChain)->assertOk()->assertJsonPath('summary.invoice_count', 2);
+        $this->getJson($url.'&chain_id='.$foreignChain)->assertOk()->assertJsonPath('summary.invoice_count', 1)
+            ->assertJsonPath('summary.gross_sales', '999.00');
+        $this->getJson($url.'&chain_id='.$firstChain.'&branch_id='.$foreign)->assertForbidden();
     }
 
     public function test_customer_debt_accepts_partial_payments_without_overpayment_and_checks_source_branch(): void
@@ -1007,6 +1101,84 @@ class InventoryAccessTest extends TestCase
         $this->patchJson('/api/notifications/1:'.$staff->id.'/read')->assertOk()->assertJsonPath('data.status', 'read');
         DB::table('user_role_assignments')->where('user_id', $staff->id)->update(['status' => 'revoked']);
         $this->getJson('/api/notifications')->assertForbidden();
+    }
+
+    public function test_purchase_sale_payment_transfer_alert_and_report_remain_consistent(): void
+    {
+        [$branch, $targetBranch] = $this->makeInventory();
+        $warehouse = (string) DB::table('warehouses')->where('branch_id', $branch)->value('id');
+        $targetWarehouse = (string) DB::table('warehouses')->where('branch_id', $targetBranch)->value('id');
+        $chain = DB::table('branches')->where('id', $branch)->value('chain_id');
+        $product = DB::table('products')->value('id');
+        $lot = (string) DB::table('product_lots')->value('id');
+        $supplier = DB::table('suppliers')->insertGetId(['chain_id' => $chain, 'name' => 'NCC chuỗi']);
+        $customer = DB::table('customers')->insertGetId(['chain_id' => $chain, 'name' => 'Hộ mua chịu', 'customer_type' => 'farmer']);
+        $staff = $this->makeUser('sales_staff', $branch);
+        $manager = $this->makeUser('branch_manager', $branch);
+        $receiver = $this->makeUser('sales_staff', $targetBranch);
+        DB::table('products')->where('id', $product)->update(['sale_price' => '100.00', 'tax_rate' => '5.00', 'expiry_warning_days' => 0]);
+        DB::table('inventories')->where('warehouse_id', $warehouse)->update(['average_unit_cost' => '50.000000']);
+        DB::table('inventories')->where('warehouse_id', $targetWarehouse)->update(['average_unit_cost' => '80.000000']);
+
+        $this->actingAs($staff);
+        $receipt = $this->postJson('/api/purchase-receipts', [
+            'supplier_id' => (string) $supplier, 'warehouse_id' => $warehouse,
+            'items' => [['product_id' => (string) $product, 'lot_no' => 'LO01', 'quantity' => '2', 'unit_cost' => '100.00']],
+        ])->assertCreated()->json('id');
+        $this->postJson('/api/purchase-receipts/'.$receipt.'/submit')->assertOk();
+        $this->actingAs($manager)->postJson('/api/purchase-receipts/'.$receipt.'/approve')->assertOk();
+        $this->assertEquals(12, DB::table('inventories')->where('warehouse_id', $warehouse)->value('quantity'));
+
+        $this->actingAs($staff);
+        $order = $this->postJson('/api/sales-orders', [
+            'branch_id' => (string) $branch, 'warehouse_id' => $warehouse, 'customer_id' => (string) $customer,
+            'items' => [['lot_id' => $lot, 'quantity' => '2', 'discount_amount' => '20.00']],
+        ])->assertCreated()->json('id');
+        $this->postJson('/api/sales-orders/'.$order.'/confirm', ['amount' => '100.00', 'method' => 'cash'])->assertOk();
+        $invoice = DB::table('invoices')->where('sales_order_id', $order)->first();
+        $this->assertEquals(189, $invoice->total_amount);
+        $this->assertEquals(116.67, DB::table('sales_order_items')->where('order_id', $order)->value('cost_total'));
+        $charge = DB::table('debt_transactions')->where('invoice_id', $invoice->id)->where('transaction_type', 'sale_charge')->value('id');
+        $this->postJson('/api/debts/'.$charge.'/payments', [
+            'amount' => '89.00', 'method' => 'bank_transfer', 'request_key' => 'full-flow-payment',
+        ])->assertOk()->assertJsonPath('remaining_amount', '0.00');
+
+        $transfer = $this->postJson('/api/stock-transfers', [
+            'from_warehouse_id' => $warehouse, 'to_warehouse_id' => $targetWarehouse,
+            'items' => [['lot_id' => $lot, 'requested_quantity' => '1']],
+        ])->assertCreated()->json('id');
+        $this->actingAs($manager)->postJson('/api/stock-transfers/'.$transfer.'/approve')->assertOk();
+        $this->actingAs($staff)->postJson('/api/stock-transfers/'.$transfer.'/dispatch', [
+            'items' => [['lot_id' => $lot, 'dispatched_quantity' => '1']],
+        ])->assertOk();
+        $this->actingAs($receiver)->postJson('/api/stock-transfers/'.$transfer.'/receive', [
+            'items' => [['lot_id' => $lot, 'received_quantity' => '1']],
+        ])->assertOk();
+        $this->assertEquals(9, DB::table('inventories')->where('warehouse_id', $warehouse)->value('quantity'));
+        $this->assertEquals(11, DB::table('inventories')->where('warehouse_id', $targetWarehouse)->value('quantity'));
+
+        $this->actingAs($manager)->putJson('/api/inventory/thresholds/'.$warehouse.'/'.$product, [
+            'min_stock_quantity' => '10',
+        ])->assertOk();
+        $alerts = app(InventoryAlertScanner::class)->run(app(OutboxService::class));
+        $this->assertSame(1, $alerts['created']);
+        $this->assertSame('low_stock', DB::table('inventory_alert_incidents')->value('kind'));
+
+        $date = now('Asia/Ho_Chi_Minh')->toDateString();
+        $this->getJson('/api/reports/sales?period=day&date='.$date.'&branch_id='.$branch)
+            ->assertOk()->assertJsonPath('summary.invoice_count', 1)
+            ->assertJsonPath('summary.gross_sales', '200.00')
+            ->assertJsonPath('summary.total_discount', '20.00')
+            ->assertJsonPath('summary.net_sales', '180.00')
+            ->assertJsonPath('summary.total_tax', '9.00')
+            ->assertJsonPath('summary.invoice_total', '189.00')
+            ->assertJsonPath('summary.cogs', '116.67')
+            ->assertJsonPath('summary.gross_profit', '63.33')
+            ->assertJsonPath('summary.amount_collected', '189.00')
+            ->assertJsonPath('summary.receivable_remaining', '0.00');
+        $this->assertSame(1, DB::table('stock_movements')->where('purchase_receipt_id', $receipt)->count());
+        $this->assertSame(1, DB::table('stock_movements')->where('sales_order_id', $order)->count());
+        $this->assertSame(2, DB::table('stock_movements')->where('stock_transfer_id', $transfer)->count());
     }
 
     private function makeInventory(): array

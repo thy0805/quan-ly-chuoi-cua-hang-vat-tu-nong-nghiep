@@ -49,16 +49,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((current) => {
       const rest = current.filter((item) => item.slug !== slug)
       if (quantity <= 0) return rest
-      return [...rest, { slug, quantity: Math.min(product.stock, 99, Math.max(1, Math.floor(quantity))) }]
+      return [...rest, { slug, quantity: Math.min(99, Math.max(1, Math.floor(quantity))) }]
     })
   }
 
   function add(slug: string, quantity: number) {
     const product = products.find((entry) => entry.slug === slug)
-    if (!product || quantity <= 0 || product.stock <= 0) return
+    if (!product || quantity <= 0) return
     setItems((current) => {
       const previous = current.find((item) => item.slug === slug)?.quantity ?? 0
-      return [...current.filter((item) => item.slug !== slug), { slug, quantity: Math.min(product.stock, 99, previous + Math.floor(quantity)) }]
+      return [...current.filter((item) => item.slug !== slug), { slug, quantity: Math.min(99, previous + Math.floor(quantity)) }]
     })
   }
 

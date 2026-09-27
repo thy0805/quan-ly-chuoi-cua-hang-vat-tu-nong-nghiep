@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
+use App\Support\DecimalId;
 use App\Support\PartnerAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -84,7 +85,7 @@ class OrganizationController extends Controller
     public function createBranch(Request $request, PartnerAccess $access): JsonResponse
     {
         $data = $request->validate([
-            'chain_id' => ['required', 'integer', 'exists:chains,id'],
+            'chain_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:chains,id'],
             'code' => ['required', 'string', 'max:40'],
             'name' => ['required', 'string', 'max:160'],
             'address' => ['nullable', 'string'],
@@ -105,7 +106,7 @@ class OrganizationController extends Controller
             'code' => ['sometimes', 'required', 'string', 'max:40'],
             'name' => ['sometimes', 'required', 'string', 'max:160'],
             'address' => ['sometimes', 'nullable', 'string'],
-            'default_sales_warehouse_id' => ['sometimes', 'nullable', 'integer', 'exists:warehouses,id'],
+            'default_sales_warehouse_id' => ['bail', 'sometimes', 'nullable', 'string', DecimalId::rule(), 'exists:warehouses,id'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
         if (array_key_exists('default_sales_warehouse_id', $data) && $data['default_sales_warehouse_id'] !== null) {
@@ -128,7 +129,7 @@ class OrganizationController extends Controller
     public function createWarehouse(Request $request, PartnerAccess $access): JsonResponse
     {
         $data = $request->validate([
-            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'branch_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:branches,id'],
             'code' => ['required', 'string', 'max:40'],
             'name' => ['required', 'string', 'max:160'],
             'warehouse_type' => ['required', 'string', 'max:40'],

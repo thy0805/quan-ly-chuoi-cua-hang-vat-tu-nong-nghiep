@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\PartnerAccess;
+use App\Support\DecimalId;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,14 +13,14 @@ class CustomerController extends Controller
     public function index(Request $request, PartnerAccess $access): JsonResponse
     {
         $filters = $request->validate([
-            'chain_id' => ['nullable', 'integer', 'min:1'],
+            'chain_id' => ['bail', 'nullable', 'string', DecimalId::rule()],
             'search' => ['nullable', 'string', 'max:120'],
             'customer_type' => ['nullable', 'in:farmer,small_dealer'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
         $chainIds = $access->chainIds($request->user(), ['chain_owner', 'branch_manager', 'sales_staff'])->all();
         abort_if($chainIds === [], 403);
-        if (isset($filters['chain_id'])) abort_unless(in_array((int) $filters['chain_id'], array_map('intval', $chainIds), true), 403);
+        if (isset($filters['chain_id'])) abort_unless(in_array($filters['chain_id'], array_map('strval', $chainIds), true), 403);
 
         $query = DB::table('customers as customer')
             ->join('chains as chain', 'chain.id', '=', 'customer.chain_id')
@@ -47,7 +48,7 @@ class CustomerController extends Controller
     public function store(Request $request, PartnerAccess $access): JsonResponse
     {
         $data = $request->validate([
-            'chain_id' => ['required', 'integer', 'exists:chains,id'],
+            'chain_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:chains,id'],
             'name' => ['required', 'string', 'max:160'],
             'customer_type' => ['required', 'in:farmer,small_dealer'],
             'phone' => ['nullable', 'string', 'max:30'],

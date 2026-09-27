@@ -132,6 +132,10 @@ class CatalogAccessTest extends TestCase
             ->assertCreated()->json('data.id');
         $unit = $this->postJson('/api/catalog/units', ['code' => 'GOI', 'name' => 'Gói'])
             ->assertCreated()->json('data.id');
+        $this->postJson('/api/catalog/products', [
+            'code' => 'SAI-ID', 'name' => 'ID không hợp lệ', 'sale_price' => '100.00',
+            'category_id' => '9223372036854775808', 'unit_id' => $unit,
+        ])->assertUnprocessable()->assertJsonValidationErrors('category_id');
         $product = $this->postJson('/api/catalog/products', [
             'code' => 'VT01', 'name' => 'Lúa giống', 'sale_price' => '125000.00', 'tax_rate' => '8.00',
             'category_id' => $category, 'unit_id' => $unit,

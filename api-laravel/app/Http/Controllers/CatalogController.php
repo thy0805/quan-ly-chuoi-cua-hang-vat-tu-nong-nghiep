@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
+use App\Support\DecimalId;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ class CatalogController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:120'],
-            'category_id' => ['nullable', 'integer', 'min:1'],
+            'category_id' => ['bail', 'nullable', 'string', DecimalId::rule()],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
             'active_only' => ['nullable', 'boolean'],
         ]);

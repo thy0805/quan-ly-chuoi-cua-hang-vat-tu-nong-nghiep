@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
+use App\Support\DecimalId;
 use App\Support\PurchaseReceiptService;
 use App\Support\ReceiptAccess;
 use Illuminate\Http\JsonResponse;
@@ -15,13 +16,13 @@ class PurchaseReceiptController extends Controller
     public function index(Request $request, BranchAccess $branches, ReceiptAccess $access): JsonResponse
     {
         $filters = $request->validate([
-            'branch_id' => ['nullable', 'integer', 'min:1'],
+            'branch_id' => ['bail', 'nullable', 'string', DecimalId::rule()],
             'status' => ['nullable', 'in:draft,submitted,approved,rejected'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
         $allowedIds = $branches->branchesFor($request->user())->pluck('id')->all();
         abort_if($allowedIds === [], 403);
-        if (isset($filters['branch_id'])) abort_unless(in_array((int) $filters['branch_id'], array_map('intval', $allowedIds), true), 403);
+        if (isset($filters['branch_id'])) abort_unless(in_array($filters['branch_id'], array_map('strval', $allowedIds), true), 403);
 
         $query = DB::table('purchase_receipts as receipt')
             ->join('warehouses as warehouse', 'warehouse.id', '=', 'receipt.warehouse_id')
@@ -152,10 +153,10 @@ class PurchaseReceiptController extends Controller
     {
         $data = $request->validate([
             'created_by' => ['prohibited'], 'approved_by' => ['prohibited'], 'receipt_no' => ['prohibited'], 'total_amount' => ['prohibited'],
-            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
-            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'supplier_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:suppliers,id'],
+            'warehouse_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:warehouses,id'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
-            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:products,id'],
             'items.*.lot_no' => ['required', 'string', 'max:80'],
             'items.*.manufactured_on' => ['nullable', 'date_format:Y-m-d'],
             'items.*.expires_on' => ['nullable', 'date_format:Y-m-d'],

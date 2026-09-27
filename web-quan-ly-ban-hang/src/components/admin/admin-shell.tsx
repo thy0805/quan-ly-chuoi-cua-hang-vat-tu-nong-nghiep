@@ -3,8 +3,9 @@
 import { createContext, useContext, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, ArrowLeftRight, Boxes, ClipboardList, HandCoins, LayoutDashboard, LogOut, MapPin, Menu, Package, PackagePlus, RefreshCw, Users } from "lucide-react"
+import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Boxes, ClipboardList, HandCoins, LayoutDashboard, LogOut, MapPin, Menu, Package, PackagePlus, RefreshCw, Users } from "lucide-react"
 import { DesignStatus } from "@/components/design-status"
+import { useNotificationFeed } from "@/components/admin/notification-feed"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { logout, type Profile } from "@/lib/api"
 
@@ -20,6 +21,7 @@ const navigation = [
   { label: "Bán hàng", href: "/admin/sales", icon: ClipboardList },
   { label: "Điều chuyển", href: "/admin/transfers", icon: ArrowLeftRight },
   { label: "Công nợ", href: "/admin/debts", icon: HandCoins },
+  { label: "Báo cáo", href: "/admin/reports", icon: BarChart3, reportOnly: true },
   { label: "Cảnh báo", href: "/admin/alerts", icon: AlertTriangle },
   { label: "Đồng bộ dữ liệu", href: "/admin/sync", icon: RefreshCw, ownerOnly: true },
 ]
@@ -38,7 +40,9 @@ export function AdminShell({ children, profile }: { children: React.ReactNode; p
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState("")
-  const isLiveInventory = pathname.startsWith("/admin/inventory") || pathname === "/admin/catalog" || pathname === "/admin/organization" || pathname === "/admin/users" || pathname === "/admin/suppliers" || pathname === "/admin/customers" || pathname === "/admin/purchases" || pathname.startsWith("/admin/sales") || pathname === "/admin/transfers" || pathname === "/admin/debts" || pathname === "/admin/alerts" || pathname === "/admin/sync" || pathname === "/admin"
+  const { result: notifications } = useNotificationFeed()
+  const unreadCount = notifications?.unread_count ?? 0
+  const isLiveInventory = pathname.startsWith("/admin/inventory") || pathname === "/admin/catalog" || pathname === "/admin/organization" || pathname === "/admin/users" || pathname === "/admin/suppliers" || pathname === "/admin/customers" || pathname === "/admin/purchases" || pathname.startsWith("/admin/sales") || pathname === "/admin/transfers" || pathname === "/admin/debts" || pathname === "/admin/reports" || pathname === "/admin/alerts" || pathname === "/admin/sync" || pathname === "/admin"
   const pageLabel = navigation.find((item) => item.href === pathname)?.label ?? "Quản lý"
 
   async function handleLogout() {
@@ -62,8 +66,8 @@ export function AdminShell({ children, profile }: { children: React.ReactNode; p
           <span><span className="block font-semibold tracking-[-0.03em]">Nông Gia</span><span className="block text-xs text-white/60">Quản lý chuỗi</span></span>
         </Link>
         <nav aria-label="Điều hướng quản trị" className="mt-8 space-y-1">
-          {navigation.filter((item) => !("ownerOnly" in item && item.ownerOnly && !profile.user.can_manage_sync)).map(({ label, href, icon: Icon }) => {
-            const content = <><Icon className="size-4 shrink-0" /><span>{label}</span></>
+          {navigation.filter((item) => !("ownerOnly" in item && item.ownerOnly && !profile.user.can_manage_sync) && !("reportOnly" in item && item.reportOnly && !profile.user.can_view_reports)).map(({ label, href, icon: Icon }) => {
+            const content = <><Icon className="size-4 shrink-0" /><span>{label}</span>{href === "/admin/alerts" && unreadCount > 0 && <span className="ml-auto rounded-full bg-[#e8c675] px-2 py-0.5 text-xs font-bold text-[#203d2e]">{unreadCount > 99 ? "99+" : unreadCount}</span>}</>
             if (!href) return <span key={label} aria-disabled="true" title="Chức năng đang phát triển" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-white/40">{content}</span>
             return <Link key={label} href={href} onClick={() => setMenuOpen(false)} aria-current={pathname === href ? "page" : undefined} className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8c675] ${pathname === href ? "bg-white text-[#203d2e]" : "text-white/75 hover:bg-white/10 hover:text-white"}`}>{content}</Link>
           })}
@@ -94,7 +98,8 @@ export function AdminShell({ children, profile }: { children: React.ReactNode; p
           <header className="flex h-20 items-center gap-4 border-b border-black/8 bg-[#fbfaf5] px-5 lg:px-8">
             <button type="button" aria-label="Mở menu quản trị" onClick={() => setMenuOpen(true)} className="grid size-11 place-items-center rounded-xl border border-black/10 md:hidden"><Menu className="size-5" /></button>
             <div><p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Nông Gia / Admin</p><p className="mt-1 text-sm font-semibold">{pageLabel}</p></div>
-            <div className="ml-auto hidden text-right sm:block"><p className="text-sm font-semibold">{profile.user.username}</p><p className="text-xs text-muted-foreground">{profile.branches.length} chi nhánh được phân quyền</p></div>
+            <Link href="/admin/alerts" aria-label={unreadCount ? `${unreadCount} cảnh báo chưa đọc` : "Xem cảnh báo"} className="relative ml-auto inline-flex size-11 items-center justify-center rounded-xl border border-black/10 bg-white text-primary hover:bg-[#e9eadf] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#274f3a]"><Bell className="size-5" />{unreadCount > 0 && <span aria-live="polite" className="absolute -right-1 -top-1 rounded-full bg-[#b65a2f] px-1.5 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}</Link>
+            <div className="hidden text-right sm:block"><p className="text-sm font-semibold">{profile.user.username}</p><p className="text-xs text-muted-foreground">{profile.branches.length} chi nhánh được phân quyền</p></div>
           </header>
           {children}
         </div>

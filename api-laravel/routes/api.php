@@ -13,6 +13,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProductContentController;
 use App\Http\Controllers\PurchaseReceiptController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserManagementController;
@@ -65,6 +66,7 @@ Route::middleware(['auth:sanctum', EnsureActiveUser::class, SerializeBigIntIds::
     Route::patch('/suppliers/{id}', [SupplierController::class, 'update'])->whereNumber('id');
     Route::get('/purchase-receipts', [PurchaseReceiptController::class, 'index']);
     Route::get('/sales-orders', [SalesOrderController::class, 'index']);
+    Route::get('/reports/sales', [SalesReportController::class, 'index']);
     Route::get('/sales-orders/options', [SalesOrderController::class, 'options']);
     Route::get('/sales-orders/{id}', [SalesOrderController::class, 'show'])->whereNumber('id');
     Route::post('/sales-orders', [SalesOrderController::class, 'store']);

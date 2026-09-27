@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { AdminShell } from "@/components/admin/admin-shell"
+import { NotificationFeedProvider } from "@/components/admin/notification-feed"
 import type { Profile } from "@/lib/api"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -26,5 +27,5 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!response.ok) return <main className="grid min-h-screen place-items-center bg-[#f3f1e8] px-5 text-center text-sm text-red-800">Không xác minh được phiên đăng nhập. Vui lòng thử lại sau.</main>
 
   const profile = await response.json() as Profile
-  return <AdminShell profile={profile}>{children}</AdminShell>
+  return <NotificationFeedProvider><AdminShell profile={profile}>{children}</AdminShell></NotificationFeedProvider>
 }

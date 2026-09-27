@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\PartnerAccess;
+use App\Support\DecimalId;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,13 +13,13 @@ class SupplierController extends Controller
     public function index(Request $request, PartnerAccess $access): JsonResponse
     {
         $filters = $request->validate([
-            'chain_id' => ['nullable', 'integer', 'min:1'],
+            'chain_id' => ['bail', 'nullable', 'string', DecimalId::rule()],
             'search' => ['nullable', 'string', 'max:120'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
         $chainIds = $access->chainIds($request->user(), ['chain_owner', 'branch_manager'])->all();
         abort_if($chainIds === [], 403);
-        if (isset($filters['chain_id'])) abort_unless(in_array((int) $filters['chain_id'], array_map('intval', $chainIds), true), 403);
+        if (isset($filters['chain_id'])) abort_unless(in_array($filters['chain_id'], array_map('strval', $chainIds), true), 403);
 
         $query = DB::table('suppliers as supplier')
             ->join('chains as chain', 'chain.id', '=', 'supplier.chain_id')
@@ -45,7 +46,7 @@ class SupplierController extends Controller
     public function store(Request $request, PartnerAccess $access): JsonResponse
     {
         $data = $request->validate([
-            'chain_id' => ['required', 'integer', 'exists:chains,id'],
+            'chain_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:chains,id'],
             'name' => ['required', 'string', 'max:160'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string'],

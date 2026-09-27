@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb"
 import pg from "pg"
 import { auditDocument, backoffSeconds, decimalId, safeError } from "./contract.mjs"
 import { ensureCollections } from "./schema.mjs"
+import { rebuildForEvent } from "./snapshots.mjs"
 
 const required = ["DB_HOST", "DB_PORT", "DB_DATABASE", "DB_USERNAME"]
 for (const key of required) if (!process.env[key]) throw new Error(`Thiếu cấu hình ${key}`)
@@ -81,6 +82,7 @@ async function deliver(event) {
         $set: { resolved_at: new Date(incident.rows[0].resolved_at) },
       })
     }
+    await rebuildForEvent(pool, database, event)
     const result = await pool.query(`UPDATE outbox_events SET status = 'published', published_at = now(),
       locked_at = NULL, last_error = NULL WHERE id = $1 AND status = 'processing' AND attempt_count = $2`,
     [event.id, event.attempt_count])

@@ -65,7 +65,7 @@ class InventoryController extends Controller
     public function index(Request $request, BranchAccess $access): JsonResponse
     {
         $filters = $request->validate([
-            'branch_id' => ['nullable', 'integer', 'min:1'],
+            'branch_id' => ['nullable', 'string'],
             'search' => ['nullable', 'string', 'max:120'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
@@ -73,8 +73,8 @@ class InventoryController extends Controller
         $branches = $access->branchesFor($request->user());
         abort_if($branches->isEmpty(), 403);
 
-        $allowedIds = $branches->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $branchId = isset($filters['branch_id']) ? (int) $filters['branch_id'] : null;
+        $allowedIds = $branches->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $branchId = isset($filters['branch_id']) ? DecimalId::parse($filters['branch_id'], 'branch_id') : null;
         abort_if($branchId !== null && ! in_array($branchId, $allowedIds, true), 403);
 
         $scope = DB::table('inventories as inventory')

@@ -68,8 +68,10 @@ export type Branch = {
 }
 
 export type Profile = {
-  user: { id: string; username: string; can_manage_catalog: boolean; can_manage_sync: boolean }
+  user: { id: string; username: string; can_manage_catalog: boolean; can_manage_sync: boolean; can_view_reports: boolean }
   branches: Branch[]
+  chains: { id: string; name: string }[]
+  report_chains: { id: string; name: string }[]
 }
 
 export type InventoryItem = {

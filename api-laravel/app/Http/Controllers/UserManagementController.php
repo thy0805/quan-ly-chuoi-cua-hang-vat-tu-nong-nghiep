@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\PartnerAccess;
+use App\Support\DecimalId;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,7 +72,7 @@ class UserManagementController extends Controller
         $data = $request->validate([
             'username' => ['required', 'string', 'alpha_dash', 'min:3', 'max:80', 'unique:users,username'],
             'password' => ['required', 'string', 'min:10', 'max:255'],
-            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'branch_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:branches,id'],
             'role_code' => ['required', 'in:chain_owner,branch_manager,sales_staff'],
             'is_catalog_admin' => ['prohibited'],
         ]);
@@ -119,7 +120,7 @@ class UserManagementController extends Controller
     public function grant(Request $request, PartnerAccess $access, int $id): JsonResponse
     {
         $data = $request->validate([
-            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'branch_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:branches,id'],
             'role_code' => ['required', 'in:chain_owner,branch_manager,sales_staff'],
         ]);
         $chainIds = $this->ownerChains($request, $access);

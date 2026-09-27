@@ -13,6 +13,7 @@ class ProfileController extends Controller
     public function show(Request $request, BranchAccess $access, CatalogPermission $catalogPermission): JsonResponse
     {
         $branches = $access->branchesFor($request->user());
+        $reportBranches = $access->branchesFor($request->user(), ['branch_manager']);
         abort_if($branches->isEmpty(), 403);
         $canManageSync = DB::table('user_role_assignments as assignment')
             ->join('roles as role', 'role.id', '=', 'assignment.role_id')
@@ -27,8 +28,13 @@ class ProfileController extends Controller
                 'username' => $request->user()->username,
                 'can_manage_catalog' => $catalogPermission->canManage($request->user()),
                 'can_manage_sync' => $canManageSync,
+                'can_view_reports' => $reportBranches->isNotEmpty(),
             ],
             'branches' => $branches,
+            'chains' => DB::table('chains')->whereIn('id', $branches->pluck('chain_id')->unique()->all())
+                ->orderBy('name')->get(['id', 'name'])->map(fn ($chain) => ['id' => (string) $chain->id, 'name' => $chain->name]),
+            'report_chains' => DB::table('chains')->whereIn('id', $reportBranches->pluck('chain_id')->unique()->all())
+                ->orderBy('name')->get(['id', 'name'])->map(fn ($chain) => ['id' => (string) $chain->id, 'name' => $chain->name]),
         ]);
     }
 }
