@@ -6,7 +6,7 @@ export function ShopFooter() {
       <div className="page-shell grid gap-10 py-14 md:grid-cols-3">
         <div>
           <p className="text-2xl font-semibold tracking-[-0.04em]">Nông Gia</p>
-          <p className="mt-4 max-w-sm text-sm leading-6 text-white/65">Vật tư rõ nguồn gốc, tra cứu tồn kho và hỗ trợ mua sắm thuận tiện cho từng mùa vụ.</p>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-white/65">Bản xem trước danh mục vật tư nông nghiệp và trải nghiệm chọn hàng cho từng mùa vụ.</p>
         </div>
         <div>
           <p className="text-sm font-semibold">Khám phá</p>
@@ -17,8 +17,8 @@ export function ShopFooter() {
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold">Liên hệ cửa hàng</p>
-          <p className="mt-4 text-sm leading-6 text-white/65">Thứ hai – Chủ nhật<br />07:00 – 18:00</p>
+          <p className="text-sm font-semibold">Trạng thái cửa hàng</p>
+          <p className="mt-4 text-sm leading-6 text-white/65">Danh mục và giá đang minh họa. Đặt hàng trực tuyến chưa được mở.</p>
         </div>
       </div>
     </footer>

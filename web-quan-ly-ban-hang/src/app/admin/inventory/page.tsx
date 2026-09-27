@@ -1,85 +1,152 @@
-import { Download, Filter, Plus, Search } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { inventory } from "@/lib/mock-data"
+"use client"
 
-const statusVariant = (status: string) => {
-  if (status === "Sắp hết") return "destructive" as const
-  if (status === "Theo dõi") return "outline" as const
-  return "secondary" as const
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { AlertTriangle, Boxes, MapPin, RotateCw, Search } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ApiError, apiFetch, type Branch, type InventoryItem, type InventoryResponse } from "@/lib/api"
+
+const numberFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 })
+
+function statusVariant(status: string): "destructive" | "secondary" | "outline" {
+  if (status === "Hết hạn") return "destructive"
+  if (status === "Gần hết hạn") return "secondary"
+  return "outline"
+}
+
+function formatExpiry(value: string | null) {
+  if (!value) return "Không có hạn dùng"
+  const [year, month, day] = value.slice(0, 10).split("-")
+  return `${day}/${month}/${year}`
+}
+
+function InventoryRow({ item }: { item: InventoryItem }) {
+  return (
+    <tr className="border-b border-black/6 last:border-0">
+      <td className="py-4 pr-5">
+        <p className="font-semibold">{item.product_name}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{item.product_code}</p>
+      </td>
+      <td className="py-4 pr-5 text-muted-foreground">{item.branch_name}<br />{item.warehouse_name}</td>
+      <td className="py-4 pr-5">{item.lot_no}</td>
+      <td className="py-4 pr-5">{formatExpiry(item.expires_on)}</td>
+      <td className="py-4 pr-5 font-medium">{numberFormat.format(Number(item.quantity))} {item.unit_name}</td>
+      <td className="py-4"><Badge variant={statusVariant(item.status)}>{item.status}</Badge></td>
+    </tr>
+  )
 }
 
 export default function InventoryPage() {
+  const router = useRouter()
+  const [search, setSearch] = useState("")
+  const [branchId, setBranchId] = useState("")
+  const [page, setPage] = useState(1)
+  const [result, setResult] = useState<InventoryResponse | null>(null)
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      setError("")
+
+      const params = new URLSearchParams({ page: String(page), per_page: "20" })
+      if (search.trim()) params.set("search", search.trim())
+      if (branchId) params.set("branch_id", branchId)
+
+      try {
+        const data = await apiFetch<InventoryResponse>(`/api/inventory?${params}`, { signal: controller.signal })
+        if (!controller.signal.aborted) {
+          setResult(data)
+          setBranches(data.branches)
+        }
+      } catch (caught) {
+        if (controller.signal.aborted) return
+        if (caught instanceof ApiError && caught.status === 401) {
+          router.replace("/login")
+          return
+        }
+        setResult(null)
+        setError(caught instanceof Error ? caught.message : "Không tải được dữ liệu tồn kho.")
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }, search ? 250 : 0)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [branchId, page, reload, router, search])
+
+  const metrics = [
+    { label: "Dòng tồn kho", value: result?.summary.inventory_rows, icon: Boxes },
+    { label: "Lô gần hết hạn", value: result?.summary.expiring_lots, icon: AlertTriangle },
+    { label: "Chi nhánh có tồn", value: result?.summary.branches_with_stock, icon: MapPin },
+  ]
+
   return (
     <main className="p-5 lg:p-8">
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">Kho và lô hàng</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em]">Tồn kho vật tư</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Theo dõi số lượng, số lô và hạn sử dụng tại từng chi nhánh.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline"><Download className="size-4" /> Xuất dữ liệu</Button>
-          <Button className="bg-[#274f3a] hover:bg-[#203d2e]"><Plus className="size-4" /> Nhập vật tư</Button>
-        </div>
+      <div>
+        <p className="text-sm font-medium text-primary">Quản lý kho hàng</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em]">Tồn kho theo lô</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Theo dõi số lượng và hạn dùng tại các kho bạn được phân quyền.</p>
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        {[
-          ["302", "Tổng đơn vị tồn"],
-          ["5", "Mặt hàng cần chú ý"],
-          ["3", "Chi nhánh có dữ liệu"],
-        ].map(([value, label]) => (
+      {error && <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-300 px-3 font-semibold hover:bg-red-100"><RotateCw className="size-4" />Thử lại</button></div>}
+
+      <section className="mt-7 grid gap-4 sm:grid-cols-3">
+        {metrics.map(({ label, value, icon: Icon }) => (
           <Card key={label} className="border-black/8 bg-[#fbfaf5] shadow-none">
-            <CardContent className="py-5">
-              <p className="text-2xl font-semibold tracking-[-0.04em]">{value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-            </CardContent>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+              <span className="grid size-9 place-items-center rounded-xl bg-[#e1e5d3]"><Icon className="size-4 text-primary" /></span>
+            </CardHeader>
+            <CardContent>{loading && !result ? <Skeleton className="h-9 w-20" /> : <p className="text-3xl font-semibold tracking-[-0.04em]">{value === undefined ? "—" : numberFormat.format(value)}</p>}</CardContent>
           </Card>
         ))}
-      </div>
+      </section>
 
-      <Card className="mt-4 border-black/8 bg-[#fbfaf5] shadow-none">
-        <CardContent className="p-0">
-          <div className="flex flex-col gap-3 border-b border-black/8 p-4 sm:flex-row sm:items-center">
-            <div className="relative max-w-md flex-1">
+      <Card className="mt-6 border-black/8 bg-[#fbfaf5] shadow-none">
+        <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle className="text-lg">Danh sách tồn kho</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Tra theo mã vật tư, tên hoặc số lô. Cận hạn theo vật tư, mặc định 30 ngày nếu chưa cấu hình.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input aria-label="Tìm kiếm tồn kho" placeholder="Tìm theo mã, tên vật tư hoặc số lô" className="pl-9" />
-            </div>
-            <Button variant="outline"><Filter className="size-4" /> Bộ lọc</Button>
-            <select aria-label="Chọn chi nhánh" className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm">
-              <option>Tất cả chi nhánh</option>
-              <option>Chi nhánh Trung tâm</option>
-              <option>Chi nhánh Bình Chánh</option>
-              <option>Chi nhánh Củ Chi</option>
+              <input aria-label="Tìm vật tư hoặc số lô" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setResult(null) }} placeholder="Tìm vật tư, số lô" className="h-11 w-full rounded-xl border border-black/10 bg-white pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#274f3a] sm:w-56" />
+            </label>
+            <select aria-label="Lọc chi nhánh" value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1); setResult(null) }} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#274f3a]">
+              <option value="">Tất cả chi nhánh được cấp quyền</option>
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
           </div>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-left text-sm">
-              <thead className="bg-[#f3f1e8] text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-4 font-medium">Mã vật tư</th><th className="px-5 py-4 font-medium">Tên vật tư</th><th className="px-5 py-4 font-medium">Chi nhánh</th><th className="px-5 py-4 font-medium">Số lô</th><th className="px-5 py-4 font-medium">Hạn dùng</th><th className="px-5 py-4 text-right font-medium">Tồn kho</th><th className="px-5 py-4 font-medium">Trạng thái</th></tr>
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead className="border-b border-black/8 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr><th className="py-3 pr-5 font-medium">Vật tư</th><th className="py-3 pr-5 font-medium">Chi nhánh / kho</th><th className="py-3 pr-5 font-medium">Số lô</th><th className="py-3 pr-5 font-medium">Hạn dùng</th><th className="py-3 pr-5 font-medium">Số lượng</th><th className="py-3 font-medium">Trạng thái</th></tr>
               </thead>
-              <tbody>
-                {inventory.map((item) => (
-                  <tr key={item.sku} className="border-t border-black/6 hover:bg-[#f7f5ed]">
-                    <td className="px-5 py-4 font-mono text-xs">{item.sku}</td>
-                    <td className="px-5 py-4 font-medium">{item.name}</td>
-                    <td className="px-5 py-4 text-muted-foreground">{item.branch}</td>
-                    <td className="px-5 py-4">{item.lot}</td>
-                    <td className="px-5 py-4">{item.expiry}</td>
-                    <td className="px-5 py-4 text-right font-semibold">{item.stock}</td>
-                    <td className="px-5 py-4"><Badge variant={statusVariant(item.status)}>{item.status}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
+              <tbody>{!loading && result?.data.map((item) => <InventoryRow key={item.id} item={item} />)}</tbody>
             </table>
+            {loading && <div role="status" className="space-y-3 py-6"><span className="sr-only">Đang tải dữ liệu tồn kho</span>{[1, 2, 3].map((row) => <Skeleton key={row} className="h-12 w-full" />)}</div>}
+            {!loading && !error && result?.data.length === 0 && <div className="py-12 text-center"><Boxes className="mx-auto size-9 text-muted-foreground" /><p className="mt-3 font-medium">Không có dòng tồn kho phù hợp</p><p className="mt-1 text-sm text-muted-foreground">Thử thay đổi từ khóa hoặc chi nhánh.</p></div>}
           </div>
-          <div className="flex items-center justify-between border-t border-black/8 px-5 py-4 text-xs text-muted-foreground">
-            <span>Hiển thị 6 mặt hàng minh họa</span>
-            <span>Trang 1 / 1</span>
-          </div>
+          {result && result.pagination.last_page > 1 && (
+            <div className="mt-5 flex items-center justify-end gap-3 text-sm">
+              <button disabled={page <= 1 || loading} onClick={() => { setPage(page - 1); setResult(null) }} className="min-h-10 rounded-lg border border-black/10 px-3 py-2 hover:bg-[#e9eadf] disabled:opacity-40">Trang trước</button>
+              <span>{result.pagination.current_page} / {result.pagination.last_page}</span>
+              <button disabled={page >= result.pagination.last_page || loading} onClick={() => { setPage(page + 1); setResult(null) }} className="min-h-10 rounded-lg border border-black/10 px-3 py-2 hover:bg-[#e9eadf] disabled:opacity-40">Trang sau</button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </main>

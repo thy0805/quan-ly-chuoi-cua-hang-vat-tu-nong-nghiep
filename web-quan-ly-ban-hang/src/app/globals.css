@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans), Arial, sans-serif;
   --font-mono: var(--font-geist-sans);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -139,4 +139,52 @@
     background-image: linear-gradient(to right, color-mix(in oklab, var(--border) 40%, transparent) 1px, transparent 1px);
     background-size: 8.333333% 100%;
   }
+}
+
+.logout-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8c675;
+  color: #203d2e;
+  transition: width 180ms ease;
+}
+
+.logout-control span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition: max-width 180ms ease, opacity 180ms ease;
+}
+
+.logout-control:is(:hover, :focus-visible, :disabled) {
+  width: 125px;
+  gap: 8px;
+}
+
+.logout-control:is(:hover, :focus-visible, :disabled) span {
+  max-width: 80px;
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .logout-control { width: 125px; gap: 8px; }
+  .logout-control span { max-width: 80px; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logout-control, .logout-control span { transition: none; }
+}
+@media print {
+  body:has(.invoice-page) { background: #fff !important; }
+  body:has(.invoice-page) .min-h-screen { min-height: 0 !important; background: #fff !important; }
+  body:has(.invoice-page) aside,
+  body:has(.invoice-page) header,
+  body:has(.invoice-page) nav { display: none !important; }
+  .invoice-page { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 }

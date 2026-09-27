@@ -8,7 +8,7 @@ import { products } from "@/lib/mock-data"
 export default function ShopPage() {
   const features = [
     { icon: PackageCheck, title: "Thông tin rõ ràng", text: "Theo dõi nhóm hàng, số lô và hạn sử dụng." },
-    { icon: Truck, title: "Nhận hàng thuận tiện", text: "Chọn chi nhánh có tồn kho phù hợp với nhu cầu." },
+    { icon: Truck, title: "Chọn hàng thuận tiện", text: "Lưu danh sách vật tư quan tâm trên thiết bị để xem lại." },
     { icon: ShieldCheck, title: "Hỗ trợ có trách nhiệm", text: "Nội dung sử dụng hiển thị theo thông tin sản phẩm." },
   ]
 
@@ -20,7 +20,7 @@ export default function ShopPage() {
             <div className="lg:col-span-7">
               <p data-reveal className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Đồng hành cùng mùa vụ</p>
               <h1 data-reveal className="mt-6 max-w-5xl text-5xl font-semibold leading-[0.96] tracking-[-0.065em] sm:text-7xl lg:text-[6.5rem]">Chọn đúng vật tư, chăm tốt từng mùa.</h1>
-              <p data-reveal className="mt-8 max-w-xl text-lg leading-8 text-muted-foreground">Mua sắm phân bón, hạt giống, sản phẩm bảo vệ thực vật và dụng cụ với thông tin lô hàng, tồn kho rõ ràng.</p>
+              <p data-reveal className="mt-8 max-w-xl text-lg leading-8 text-muted-foreground">Khám phá phân bón, hạt giống, sản phẩm bảo vệ thực vật và dụng cụ. Danh mục và giá hiện là bản minh họa.</p>
               <div data-reveal className="mt-9 flex flex-wrap gap-3">
                 <Link href="/shop/products" className="inline-flex h-12 items-center gap-3 rounded-full bg-[#274f3a] px-6 text-sm font-semibold text-white">Xem sản phẩm <ArrowRight className="size-4" /></Link>
                 <a href="#categories" className="inline-flex h-12 items-center rounded-full border border-black/15 px-6 text-sm font-semibold">Khám phá danh mục</a>
@@ -31,8 +31,8 @@ export default function ShopPage() {
                 <Image src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1400&q=90" alt="Cánh đồng và cây trồng" fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 42vw" />
               </div>
               <div className="absolute -bottom-5 -left-5 max-w-[230px] rounded-2xl bg-[#e8c675] p-5 shadow-xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.15em]">Tra cứu nhanh</p>
-                <p className="mt-2 text-lg font-semibold leading-6">Tồn kho, số lô và hạn sử dụng tại từng chi nhánh.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.15em]">Xem trước danh mục</p>
+                <p className="mt-2 text-lg font-semibold leading-6">Khám phá nhóm hàng và thông tin sản phẩm minh họa.</p>
               </div>
             </div>
           </div>
@@ -52,7 +52,7 @@ export default function ShopPage() {
               ["Hạt giống", "Khởi đầu mùa vụ", "md:col-span-4 bg-[#ead9ad]"],
               ["Dụng cụ", "Bền bỉ ngoài vườn", "md:col-span-3 bg-[#cadbd4]"],
             ].map(([title, text, classes]) => (
-              <Link key={title} href="/shop/products" className={`min-h-64 rounded-[1.75rem] p-7 ${classes}`}>
+              <Link key={title} href={`/shop/products?category=${encodeURIComponent(title)}`} className={`min-h-64 rounded-[1.75rem] p-7 transition-transform duration-300 hover:-translate-y-1 ${classes}`}>
                 <p className="text-2xl font-semibold tracking-[-0.04em]">{title}</p>
                 <p className="mt-2 text-sm text-foreground/60">{text}</p>
                 <ArrowRight className="mt-24 size-5" />

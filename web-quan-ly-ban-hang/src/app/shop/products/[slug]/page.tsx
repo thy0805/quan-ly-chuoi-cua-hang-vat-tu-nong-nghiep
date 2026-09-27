@@ -1,7 +1,8 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Check, MapPin, Minus, Plus, ShoppingBag } from "lucide-react"
+import { ArrowLeft, Check, MapPin } from "lucide-react"
 import { notFound } from "next/navigation"
+import { ProductPurchase } from "@/components/shop/product-purchase"
 import { formatMoney, products } from "@/lib/mock-data"
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -27,15 +28,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <div className="flex items-center justify-between border-b border-black/8 py-4"><span className="text-sm text-muted-foreground">Hạn sử dụng</span><span className="text-sm font-semibold">{product.expiry}</span></div>
             <div className="flex items-center justify-between pt-4"><span className="text-sm text-muted-foreground">Tồn tham khảo</span><span className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><Check className="size-4" /> {product.stock} {product.unit}</span></div>
           </div>
-          <div className="mt-6 flex gap-3">
-            <div className="flex h-12 items-center rounded-full border border-black/12 bg-white">
-              <button aria-label="Giảm số lượng" className="grid size-12 place-items-center"><Minus className="size-4" /></button>
-              <span className="w-8 text-center text-sm font-semibold">1</span>
-              <button aria-label="Tăng số lượng" className="grid size-12 place-items-center"><Plus className="size-4" /></button>
-            </div>
-            <Link href="/shop/cart" className="inline-flex h-12 flex-1 items-center justify-center gap-3 rounded-full bg-[#274f3a] px-6 text-sm font-semibold text-white"><ShoppingBag className="size-4" /> Thêm vào giỏ</Link>
-          </div>
-          <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="size-4" /> Tồn kho thực tế được xác nhận theo chi nhánh khi đặt hàng.</p>
+          <ProductPurchase product={product} />
+          <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="size-4" /> Giá và tồn đang là dữ liệu minh họa; giỏ hàng chỉ lưu trên thiết bị này.</p>
         </div>
       </div>
     </main>

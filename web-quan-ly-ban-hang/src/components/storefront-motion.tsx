@@ -9,6 +9,7 @@ export function StorefrontMotion({ children }: { children: React.ReactNode }) {
 
   useGSAP(
     () => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
       gsap.from("[data-reveal]", {
         opacity: 0,
         y: 28,
