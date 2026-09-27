@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowRight, Boxes, MapPin, TrendingUp, Wallet, ReceiptTe
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { InventoryResponse, Profile } from "@/lib/api"
+import { formatVnd } from "@/lib/money"
 
 const numberFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 })
 const formatExpiry = (value: string | null) => value ? new Intl.DateTimeFormat("vi-VN").format(new Date(`${value.slice(0, 10)}T00:00:00`)) : "Không áp dụng"
@@ -22,8 +23,7 @@ type ReportSummary = {
 type SalesReport = { summary: ReportSummary }
 const money = (value: string | null) => {
   if (value === null) return "Chưa đủ dữ liệu"
-  const [whole, fraction = ""] = value.split(".")
-  return `${new Intl.NumberFormat("vi-VN").format(BigInt(whole))}${fraction && fraction !== "00" ? `,${fraction}` : ""} ₫`
+  return formatVnd(value)
 }
 
 async function inventoryOverview(): Promise<InventoryResponse | null> {

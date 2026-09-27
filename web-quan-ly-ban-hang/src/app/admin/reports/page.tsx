@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAdminProfile } from "@/components/admin/admin-shell"
 import { ApiError, apiFetch } from "@/lib/api"
+import { formatVnd } from "@/lib/money"
 
 type Metrics = {
   invoice_count: number
@@ -35,9 +36,7 @@ type Report = {
 
 const currency = (value: string | null) => {
   if (value === null) return "Chưa đủ dữ liệu"
-  const [whole, fraction = ""] = value.split(".")
-  const integer = new Intl.NumberFormat("vi-VN").format(BigInt(whole))
-  return `${integer}${fraction && fraction !== "00" ? `,${fraction}` : ""} ₫`
+  return formatVnd(value)
 }
 const inputClass = "mt-2 h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#274f3a]"
 const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
