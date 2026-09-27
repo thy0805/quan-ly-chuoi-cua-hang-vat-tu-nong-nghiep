@@ -290,7 +290,8 @@ class InventoryAccessTest extends TestCase
     public function test_guest_cannot_read_inventory(): void
     {
         $this->getJson('/api/inventory')->assertUnauthorized();
-        $this->get('/api/inventory')->assertUnauthorized();
+        $this->get('/api/inventory')->assertUnauthorized()->assertHeader('Content-Type', 'application/json');
+        $this->post('/logout')->assertUnauthorized()->assertHeader('Content-Type', 'application/json');
     }
 
     public function test_manager_sees_only_assigned_branch(): void
@@ -688,6 +689,35 @@ class InventoryAccessTest extends TestCase
         $this->postJson('/api/sales-orders/'.$third.'/confirm', ['amount' => '0'])->assertUnprocessable();
         $this->assertSame(1, DB::table('invoices')->count());
         $this->assertSame(1, DB::table('stock_movements')->where('sales_order_id', $orderId)->count());
+    }
+
+    public function test_lot_can_be_sold_on_expiry_date_in_vietnam_but_not_the_next_day(): void
+    {
+        [$branch] = $this->makeInventory();
+        $staff = $this->makeUser('sales_staff', $branch);
+        $warehouse = (string) DB::table('warehouses')->where('branch_id', $branch)->value('id');
+        $lot = (string) DB::table('product_lots')->value('id');
+        $today = now('Asia/Ho_Chi_Minh')->toDateString();
+        DB::table('product_lots')->where('id', $lot)->update(['expires_on' => $today]);
+        DB::table('products')->update(['sale_price' => '100.00', 'tax_rate' => '0.00']);
+        DB::table('inventories')->where('warehouse_id', $warehouse)->update(['average_unit_cost' => '50.000000']);
+        $body = [
+            'branch_id' => (string) $branch, 'warehouse_id' => $warehouse,
+            'items' => [['lot_id' => $lot, 'quantity' => '1', 'discount_amount' => '0']],
+        ];
+
+        $this->actingAs($staff)->getJson('/api/sales-orders/options')->assertOk()
+            ->assertJsonPath('stock.0.lot_id', $lot);
+        $first = $this->postJson('/api/sales-orders', $body)->assertCreated()->json('id');
+        $this->postJson('/api/sales-orders/'.$first.'/confirm', ['amount' => '100.00', 'method' => 'cash'])->assertOk();
+        $second = $this->postJson('/api/sales-orders', $body)->assertCreated()->json('id');
+        DB::table('product_lots')->where('id', $lot)->update(['expires_on' => now('Asia/Ho_Chi_Minh')->subDay()->toDateString()]);
+        $this->getJson('/api/sales-orders/options')->assertOk()->assertJsonPath('stock', []);
+        $this->postJson('/api/sales-orders', $body)->assertUnprocessable();
+        $this->postJson('/api/sales-orders/'.$second.'/confirm', ['amount' => '100.00', 'method' => 'cash'])->assertUnprocessable();
+        $this->assertSame(1, DB::table('invoices')->count());
+        $this->assertSame(1, DB::table('stock_movements')->where('movement_type', 'sale_out')->count());
+        $this->assertEquals(9, DB::table('inventories')->where('warehouse_id', $warehouse)->value('quantity'));
     }
 
     public function test_sales_report_uses_confirmed_snapshots_payments_local_day_and_branch_scope(): void
