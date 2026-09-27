@@ -17,6 +17,7 @@ class SaleService
                 'branch_id' => $data['branch_id'],
                 'warehouse_id' => $data['warehouse_id'],
                 'customer_id' => $data['customer_id'] ?? null,
+                'season_label' => $data['customer_id'] ?? null ? ($data['season_label'] ?? null) : null,
                 'created_by' => $creatorId,
                 'order_no' => 'BH-'.Str::ulid(),
                 'status' => 'draft',
@@ -66,9 +67,9 @@ class SaleService
         });
     }
 
-    public function confirm(string $orderId): void
+    public function confirm(string $orderId, string $actorId, array $payment): void
     {
-        DB::transaction(function () use ($orderId): void {
+        DB::transaction(function () use ($orderId, $actorId, $payment): void {
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
             abort_if($order === null, 404);
             abort_unless($order->status === 'draft', 409);
@@ -124,15 +125,51 @@ class SaleService
                 $taxTotal = $taxTotal->plus((string) $item->tax_amount);
             }
             $total = $subtotal->minus($discountTotal)->plus($taxTotal)->toScale(2);
+            $paid = BigDecimal::of((string) $payment['amount'])->toScale(2);
+            if ($paid->isGreaterThan($total)) {
+                throw ValidationException::withMessages(['amount' => 'Số tiền thu vượt tổng hóa đơn.']);
+            }
+            if ($order->customer_id === null && $paid->isLessThan($total)) {
+                throw ValidationException::withMessages(['amount' => 'Khách lẻ phải thanh toán đủ trước khi xác nhận.']);
+            }
             DB::table('sales_orders')->where('id', $orderId)->update(['status' => 'confirmed', 'sold_at' => now(), 'total_amount' => (string) $total]);
-            DB::table('invoices')->insert([
+            $invoiceId = (string) DB::table('invoices')->insertGetId([
                 'sales_order_id' => $orderId,
                 'invoice_no' => 'HD-'.Str::ulid(),
                 'subtotal' => (string) $subtotal->toScale(2),
                 'discount_amount' => (string) $discountTotal->toScale(2),
                 'tax_amount' => (string) $taxTotal->toScale(2),
                 'total_amount' => (string) $total,
-                'status' => 'issued',
+                'status' => $paid->isEqualTo($total) ? 'paid' : 'issued',
+            ]);
+            $debtId = app(DebtService::class)->recordReceivable($invoiceId, $order, (string) $total, $actorId);
+            if ($paid->isGreaterThan(0)) {
+                $paymentId = DB::table('payments')->insertGetId([
+                    'invoice_id' => $invoiceId,
+                    'method' => $payment['method'],
+                    'amount' => (string) $paid,
+                    'status' => 'completed',
+                    'created_by' => $actorId,
+                    'reference_note' => $payment['reference_note'] ?? null,
+                ]);
+                if ($debtId !== null) {
+                    DB::table('debt_transactions')->insert([
+                        'debt_id' => $debtId,
+                        'payment_id' => $paymentId,
+                        'invoice_id' => $invoiceId,
+                        'branch_id' => $order->branch_id,
+                        'warehouse_id' => $order->warehouse_id,
+                        'created_by' => $actorId,
+                        'transaction_type' => 'customer_payment',
+                        'amount' => (string) $paid,
+                    ]);
+                }
+            }
+            app(OutboxService::class)->record('sales_order', $orderId, 'sale.confirmed', [
+                'actor_id' => $actorId, 'branch_id' => (string) $order->branch_id,
+                'warehouse_id' => (string) $order->warehouse_id,
+                'invoice_id' => $invoiceId, 'customer_id' => $order->customer_id === null ? null : (string) $order->customer_id,
+                'total_amount' => (string) $total, 'paid_amount' => (string) $paid,
             ]);
         });
     }

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Package, RotateCw, Search } from "lucide-react"
+import { BookOpen, Package, RotateCw, Search } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CatalogManager } from "@/components/admin/catalog-manager"
+import { ProductContentSheet } from "@/components/admin/product-content-sheet"
 import { useAdminProfile } from "@/components/admin/admin-shell"
-import { ApiError, apiFetch, type CatalogCategory, type CatalogResponse } from "@/lib/api"
+import { ApiError, apiFetch, type CatalogCategory, type CatalogProduct, type CatalogResponse } from "@/lib/api"
 
 const priceFormat = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 })
 
@@ -23,6 +24,7 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [reload, setReload] = useState(0)
+  const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -92,9 +94,9 @@ export default function CatalogPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="border-b border-black/8 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="py-3 pr-5 font-medium">Vật tư</th><th className="py-3 pr-5 font-medium">Nhóm</th><th className="py-3 pr-5 font-medium">Hoạt chất</th><th className="py-3 pr-5 font-medium">Đơn vị</th><th className="py-3 pr-5 font-medium">Giá bán</th><th className="py-3 pr-5 font-medium">Thuế</th><th className="py-3 font-medium">Trạng thái</th></tr>
+                <tr><th className="py-3 pr-5 font-medium">Vật tư</th><th className="py-3 pr-5 font-medium">Nhóm</th><th className="py-3 pr-5 font-medium">Hoạt chất</th><th className="py-3 pr-5 font-medium">Đơn vị</th><th className="py-3 pr-5 font-medium">Giá bán</th><th className="py-3 pr-5 font-medium">Thuế</th><th className="py-3 pr-5 font-medium">Trạng thái</th><th className="py-3 font-medium">Nội dung</th></tr>
               </thead>
-              <tbody>{!loading && result?.data.map((item) => <tr key={item.id} className="border-b border-black/6 last:border-0"><td className="py-4 pr-5"><p className="font-semibold">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">{item.code}</p></td><td className="py-4 pr-5">{item.category_name}</td><td className="py-4 pr-5 text-muted-foreground">{item.active_ingredient || "—"}</td><td className="py-4 pr-5">{item.unit_name}</td><td className="py-4 pr-5 font-semibold tabular-nums">{priceFormat.format(Number(item.sale_price))}</td><td className="py-4 pr-5 tabular-nums">{item.tax_rate === null ? "Chưa cấu hình" : `${item.tax_rate}%`}</td><td className="py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.is_active && item.category_is_active && item.unit_is_active ? "bg-[#e1e5d3] text-[#274f3a]" : "bg-amber-100 text-amber-900"}`}>{item.is_active && item.category_is_active && item.unit_is_active ? "Còn dùng" : "Đã ngừng"}</span></td></tr>)}</tbody>
+              <tbody>{!loading && result?.data.map((item) => <tr key={item.id} className="border-b border-black/6 last:border-0"><td className="py-4 pr-5"><p className="font-semibold">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">{item.code}</p></td><td className="py-4 pr-5">{item.category_name}</td><td className="py-4 pr-5 text-muted-foreground">{item.active_ingredient || "—"}</td><td className="py-4 pr-5">{item.unit_name}</td><td className="py-4 pr-5 font-semibold tabular-nums">{priceFormat.format(Number(item.sale_price))}</td><td className="py-4 pr-5 tabular-nums">{item.tax_rate === null ? "Chưa cấu hình" : `${item.tax_rate}%`}</td><td className="py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.is_active && item.category_is_active && item.unit_is_active ? "bg-[#e1e5d3] text-[#274f3a]" : "bg-amber-100 text-amber-900"}`}>{item.is_active && item.category_is_active && item.unit_is_active ? "Còn dùng" : "Đã ngừng"}</span></td><td className="py-4"><button type="button" onClick={() => setSelectedProduct(item)} className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-black/10 px-3 text-xs font-semibold hover:bg-[#e9eadf]"><BookOpen className="size-3.5" />Xem nội dung</button></td></tr>)}</tbody>
             </table>
             {loading && <div role="status" className="space-y-3 py-6"><span className="sr-only">Đang tải danh mục vật tư</span>{[1, 2, 3].map((row) => <Skeleton key={row} className="h-12 w-full" />)}</div>}
             {!loading && !error && result?.data.length === 0 && <div className="py-12 text-center"><Package className="mx-auto size-9 text-muted-foreground" /><p className="mt-3 font-medium">Không có vật tư phù hợp</p><p className="mt-1 text-sm text-muted-foreground">Thử từ khóa hoặc nhóm khác.</p></div>}
@@ -102,6 +104,7 @@ export default function CatalogPage() {
           {result && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><span>{result.pagination.total} vật tư</span>{result.pagination.last_page > 1 && <div className="flex items-center gap-3"><button type="button" disabled={page <= 1 || loading} onClick={() => { setPage(page - 1); setResult(null) }} className="min-h-10 rounded-lg border border-black/10 px-3 py-2 text-foreground hover:bg-[#e9eadf] disabled:opacity-40">Trang trước</button><span>{result.pagination.current_page} / {result.pagination.last_page}</span><button type="button" disabled={page >= result.pagination.last_page || loading} onClick={() => { setPage(page + 1); setResult(null) }} className="min-h-10 rounded-lg border border-black/10 px-3 py-2 text-foreground hover:bg-[#e9eadf] disabled:opacity-40">Trang sau</button></div>}</div>}
         </CardContent>
       </Card>
+      <ProductContentSheet product={selectedProduct} canManage={profile.user.can_manage_catalog} onClose={() => setSelectedProduct(null)} />
     </main>
   )
 }

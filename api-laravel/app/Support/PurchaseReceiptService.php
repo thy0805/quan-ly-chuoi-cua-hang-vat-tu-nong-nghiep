@@ -115,6 +115,13 @@ class PurchaseReceiptService
                 'approved_by' => $approverId,
                 'approved_at' => now(),
             ]);
+            app(DebtService::class)->recordPayable((string) $receiptId, $receipt, (string) $approverId);
+            app(OutboxService::class)->record('purchase_receipt', (string) $receiptId, 'purchase.approved', [
+                'actor_id' => (string) $approverId,
+                'branch_id' => (string) DB::table('warehouses')->where('id', $receipt->warehouse_id)->value('branch_id'),
+                'warehouse_id' => (string) $receipt->warehouse_id,
+                'supplier_id' => (string) $receipt->supplier_id, 'total_amount' => (string) $receipt->total_amount,
+            ]);
         });
     }
 

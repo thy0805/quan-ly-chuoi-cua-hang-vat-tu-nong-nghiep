@@ -3,7 +3,7 @@
 import { createContext, useContext, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, ArrowLeftRight, Boxes, ClipboardList, LayoutDashboard, LogOut, MapPin, Menu, Package, PackagePlus, Users } from "lucide-react"
+import { AlertTriangle, ArrowLeftRight, Boxes, ClipboardList, HandCoins, LayoutDashboard, LogOut, MapPin, Menu, Package, PackagePlus, RefreshCw, Users } from "lucide-react"
 import { DesignStatus } from "@/components/design-status"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { logout, type Profile } from "@/lib/api"
@@ -18,8 +18,10 @@ const navigation = [
   { label: "Khách hàng", href: "/admin/customers", icon: Users },
   { label: "Nhập hàng", href: "/admin/purchases", icon: PackagePlus },
   { label: "Bán hàng", href: "/admin/sales", icon: ClipboardList },
-  { label: "Điều chuyển", href: null, icon: ArrowLeftRight },
-  { label: "Cảnh báo", href: null, icon: AlertTriangle },
+  { label: "Điều chuyển", href: "/admin/transfers", icon: ArrowLeftRight },
+  { label: "Công nợ", href: "/admin/debts", icon: HandCoins },
+  { label: "Cảnh báo", href: "/admin/alerts", icon: AlertTriangle },
+  { label: "Đồng bộ dữ liệu", href: "/admin/sync", icon: RefreshCw, ownerOnly: true },
 ]
 
 const AdminProfileContext = createContext<Profile | null>(null)
@@ -36,7 +38,7 @@ export function AdminShell({ children, profile }: { children: React.ReactNode; p
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState("")
-  const isLiveInventory = pathname === "/admin/inventory" || pathname === "/admin/catalog" || pathname === "/admin/organization" || pathname === "/admin/users" || pathname === "/admin/suppliers" || pathname === "/admin/customers" || pathname === "/admin/purchases" || pathname.startsWith("/admin/sales") || pathname === "/admin"
+  const isLiveInventory = pathname.startsWith("/admin/inventory") || pathname === "/admin/catalog" || pathname === "/admin/organization" || pathname === "/admin/users" || pathname === "/admin/suppliers" || pathname === "/admin/customers" || pathname === "/admin/purchases" || pathname.startsWith("/admin/sales") || pathname === "/admin/transfers" || pathname === "/admin/debts" || pathname === "/admin/alerts" || pathname === "/admin/sync" || pathname === "/admin"
   const pageLabel = navigation.find((item) => item.href === pathname)?.label ?? "Quản lý"
 
   async function handleLogout() {
@@ -60,7 +62,7 @@ export function AdminShell({ children, profile }: { children: React.ReactNode; p
           <span><span className="block font-semibold tracking-[-0.03em]">Nông Gia</span><span className="block text-xs text-white/60">Quản lý chuỗi</span></span>
         </Link>
         <nav aria-label="Điều hướng quản trị" className="mt-8 space-y-1">
-          {navigation.map(({ label, href, icon: Icon }) => {
+          {navigation.filter((item) => !("ownerOnly" in item && item.ownerOnly && !profile.user.can_manage_sync)).map(({ label, href, icon: Icon }) => {
             const content = <><Icon className="size-4 shrink-0" /><span>{label}</span></>
             if (!href) return <span key={label} aria-disabled="true" title="Chức năng đang phát triển" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-white/40">{content}</span>
             return <Link key={label} href={href} onClick={() => setMenuOpen(false)} aria-current={pathname === href ? "page" : undefined} className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8c675] ${pathname === href ? "bg-white text-[#203d2e]" : "text-white/75 hover:bg-white/10 hover:text-white"}`}>{content}</Link>

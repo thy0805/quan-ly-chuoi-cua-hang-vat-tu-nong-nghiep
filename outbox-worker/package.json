@@ -1,0 +1,17 @@
+{
+  "name": "klcn186-outbox-worker",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "once": "node --env-file=../api-laravel/.env src/worker.mjs --once",
+    "start": "node --env-file=../api-laravel/.env src/worker.mjs",
+    "test": "node --test src/*.test.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^7.6.0",
+    "pg": "^8.23.0"
+  }
+}

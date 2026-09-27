@@ -91,6 +91,14 @@ class SalesOrderController extends Controller
             ->join('products as product', 'product.id', '=', 'lot.product_id')
             ->where('item.order_id', $id)->orderBy('item.id')
             ->get(['item.*', 'lot.lot_no', 'product.code as product_code', 'product.name as product_name']);
+        if ($order->invoice_id !== null) {
+            $paid = DB::table('payments')->where('invoice_id', $order->invoice_id)->where('status', 'completed')->sum('amount');
+            $order->paid_amount = (string) \Brick\Math\BigDecimal::of((string) $paid)->toScale(2);
+            $order->remaining_amount = (string) \Brick\Math\BigDecimal::of((string) $order->total_amount)->minus((string) $paid)->toScale(2);
+        } else {
+            $order->paid_amount = null;
+            $order->remaining_amount = null;
+        }
         $this->stringIds($order);
         foreach ($items as $item) $this->stringIds($item);
 
@@ -103,6 +111,7 @@ class SalesOrderController extends Controller
             'branch_id' => ['required', 'string'],
             'warehouse_id' => ['required', 'string'],
             'customer_id' => ['nullable', 'string'],
+            'season_label' => ['nullable', 'string', 'max:120'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.lot_id' => ['required', 'string'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
@@ -127,6 +136,9 @@ class SalesOrderController extends Controller
         if (isset($data['customer_id']) && ! DB::table('customers')->where('id', $data['customer_id'])->where('chain_id', $branch->chain_id)->exists()) {
             throw ValidationException::withMessages(['customer_id' => 'Khách không thuộc chuỗi bán.']);
         }
+        if (isset($data['season_label']) && empty($data['customer_id'])) {
+            throw ValidationException::withMessages(['season_label' => 'Chọn khách hàng trước khi ghi mùa vụ công nợ.']);
+        }
         foreach ($data['items'] as $index => $item) {
             if (array_diff(array_keys($item), ['lot_id', 'quantity', 'discount_amount']) !== []) {
                 throw ValidationException::withMessages(["items.{$index}" => 'Giá, thuế và tổng do hệ thống tính.']);
@@ -145,7 +157,18 @@ class SalesOrderController extends Controller
         abort_unless($branches->branchesFor($request->user())->pluck('id')->contains($order->branch_id)
             && $access->canSell($request->user(), (string) $order->branch_id, (string) $order->chain_id), 403);
         abort_unless((string) $order->created_by === (string) $request->user()->id, 403);
-        $service->confirm($id);
+        $data = $request->validate([
+            'amount' => ['required', 'regex:/^\d{1,16}(\.\d{1,2})?$/'],
+            'method' => ['nullable', 'in:cash,bank_transfer'],
+            'reference_note' => ['nullable', 'string', 'max:200'],
+        ]);
+        if (\Brick\Math\BigDecimal::of($data['amount'])->isGreaterThan(0) && empty($data['method'])) {
+            throw ValidationException::withMessages(['method' => 'Chọn tiền mặt hoặc chuyển khoản thủ công.']);
+        }
+        if (array_diff(array_keys($request->all()), ['amount', 'method', 'reference_note']) !== []) {
+            throw ValidationException::withMessages(['amount' => 'Tổng tiền và dữ liệu chứng từ do hệ thống tính.']);
+        }
+        $service->confirm($id, (string) $request->user()->id, $data);
 
         return response()->json(['id' => $id, 'status' => 'confirmed']);
     }

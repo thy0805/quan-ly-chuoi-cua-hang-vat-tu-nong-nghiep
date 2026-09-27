@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\ProductContentStore;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -154,5 +155,41 @@ class CatalogAccessTest extends TestCase
 
         DB::table('user_role_assignments')->where('user_id', $user->id)->update(['status' => 'revoked']);
         $this->postJson('/api/catalog/units', ['code' => 'KG', 'name' => 'Kilôgam'])->assertForbidden();
+    }
+
+    public function test_product_content_requires_assignment_and_designated_owner_for_writes(): void
+    {
+        $chain = DB::table('chains')->insertGetId([]);
+        $branch = DB::table('branches')->insertGetId(['chain_id' => $chain, 'code' => 'A', 'name' => 'A']);
+        $role = DB::table('roles')->insertGetId(['code' => 'chain_owner']);
+        $category = DB::table('product_categories')->insertGetId(['code' => 'HAT', 'name' => 'Hạt giống']);
+        $unit = DB::table('units')->insertGetId(['code' => 'GOI', 'name' => 'Gói']);
+        DB::table('products')->insert(['id' => '9007199254740993', 'category_id' => $category, 'unit_id' => $unit, 'code' => 'VT01', 'name' => 'Lúa giống', 'sale_price' => 125000]);
+        $user = User::create(['username' => 'owner', 'password_hash' => Hash::make('matkhau'), 'is_active' => true]);
+        $path = '/api/catalog/products/9007199254740993/content';
+
+        $this->actingAs($user)->getJson($path)->assertForbidden();
+        DB::table('user_role_assignments')->insert([
+            'user_id' => $user->id, 'role_id' => $role, 'branch_id' => $branch,
+            'starts_on' => now()->subDay()->toDateString(), 'status' => 'active',
+        ]);
+
+        $store = $this->mock(ProductContentStore::class);
+        $store->shouldReceive('find')->once()->with('9007199254740993')->andReturn(null);
+        $store->shouldReceive('save')->once()->with('9007199254740993', [
+            'usage_instructions' => 'Pha theo nhãn', 'additional_info' => null, 'images' => [],
+        ])->andReturn([
+            'product_id' => '9007199254740993', 'usage_instructions' => 'Pha theo nhãn',
+            'additional_info' => null, 'images' => [], 'updated_at' => '2026-09-27T00:00:00+00:00',
+        ]);
+
+        $this->getJson($path)->assertOk()->assertJsonPath('data', null);
+        $this->putJson($path, ['usage_instructions' => 'Pha theo nhãn', 'images' => []])->assertForbidden();
+        DB::table('users')->where('id', $user->id)->update(['is_catalog_admin' => true]);
+        $user->refresh();
+        $this->putJson($path, ['images' => ['file:///tmp/a.jpg']])->assertUnprocessable()->assertJsonValidationErrors('images.0');
+        $this->putJson($path, ['usage_instructions' => 'Pha theo nhãn', 'images' => []])
+            ->assertOk()->assertJsonPath('data.product_id', '9007199254740993');
+        $this->getJson('/api/catalog/products/9007199254740994/content')->assertNotFound();
     }
 }

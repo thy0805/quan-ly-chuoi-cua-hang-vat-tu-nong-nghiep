@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Boxes, MapPin, RotateCw, Search } from "lucide-react"
+import Link from "next/link"
+import { AlertTriangle, ArrowRight, Boxes, MapPin, RotateCw, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -92,10 +93,13 @@ export default function InventoryPage() {
 
   return (
     <main className="p-5 lg:p-8">
-      <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
         <p className="text-sm font-medium text-primary">Quản lý kho hàng</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em]">Tồn kho theo lô</h1>
         <p className="mt-2 text-sm text-muted-foreground">Theo dõi số lượng và hạn dùng tại các kho bạn được phân quyền.</p>
+        </div>
+        <Link href="/admin/inventory/movements" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 text-sm font-semibold hover:bg-[#e9eadf]">Lịch sử biến động <ArrowRight className="size-4" /></Link>
       </div>
 
       {error && <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-300 px-3 font-semibold hover:bg-red-100"><RotateCw className="size-4" />Thử lại</button></div>}

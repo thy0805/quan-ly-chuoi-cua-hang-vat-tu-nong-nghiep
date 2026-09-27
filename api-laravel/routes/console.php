@@ -3,6 +3,15 @@
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
+use App\Support\InventoryAlertScanner;
+use App\Support\OutboxService;
+
+Artisan::command('alerts:scan', function (InventoryAlertScanner $scanner, OutboxService $outbox): void {
+    $this->line(json_encode($scanner->run($outbox), JSON_THROW_ON_ERROR));
+})->purpose('Quét sự cố tồn thấp và cận hạn, ghi outbox cho thông báo');
+
+Schedule::command('alerts:scan')->everyMinute()->withoutOverlapping();
 
 Artisan::command('klcn:create-user {username} {role} {branch_id}', function (): int {
     if (DB::connection()->getDatabaseName() !== 'klcn186_dev') {

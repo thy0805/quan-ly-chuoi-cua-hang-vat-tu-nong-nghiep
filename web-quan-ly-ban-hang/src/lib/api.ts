@@ -68,7 +68,7 @@ export type Branch = {
 }
 
 export type Profile = {
-  user: { id: string; username: string; can_manage_catalog: boolean }
+  user: { id: string; username: string; can_manage_catalog: boolean; can_manage_sync: boolean }
   branches: Branch[]
 }
 
@@ -117,6 +117,14 @@ export type CatalogProduct = {
   unit_code: string
   unit_name: string
   unit_is_active: boolean
+}
+
+export type ProductContent = {
+  product_id: string
+  usage_instructions: string | null
+  additional_info: string | null
+  images: string[]
+  updated_at: string
 }
 
 export type CatalogCategory = {
