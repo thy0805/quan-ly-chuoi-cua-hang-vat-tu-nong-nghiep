@@ -191,6 +191,7 @@ class StockTransferService
             throw ValidationException::withMessages(['items' => 'Tồn cũ của kho nhận chưa có giá vốn; cần xác minh trước khi cộng.']);
         }
         $newQuantity = $oldQuantity->plus($amount);
+        DecimalLimit::assertFits($newQuantity->toScale(3), 15, 3, 'items');
         $oldValue = $oldQuantity->isZero() ? BigDecimal::zero() : $oldQuantity->multipliedBy((string) $inventory->average_unit_cost);
         $incomingValue = $amount->multipliedBy($unitCost);
         $averageCost = $oldValue->plus($incomingValue)->dividedBy($newQuantity, 6, RoundingMode::HalfUp);

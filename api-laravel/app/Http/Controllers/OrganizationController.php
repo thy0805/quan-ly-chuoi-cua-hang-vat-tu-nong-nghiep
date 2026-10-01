@@ -61,7 +61,7 @@ class OrganizationController extends Controller
             abort_if($roleId === null, 500);
             $assignment = ['user_id' => $request->user()->id, 'role_id' => $roleId, 'branch_id' => $branchId];
             if (! DB::table('user_role_assignments')->where($assignment)->where('status', 'active')->exists()) {
-                DB::table('user_role_assignments')->insert($assignment + ['starts_on' => now()->toDateString(), 'status' => 'active']);
+                DB::table('user_role_assignments')->insert($assignment + ['starts_on' => now('Asia/Ho_Chi_Minh')->toDateString(), 'status' => 'active']);
             }
 
             return ['chain_id' => $chainId, 'branch_id' => $branchId];

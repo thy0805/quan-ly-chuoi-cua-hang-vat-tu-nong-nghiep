@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
 use App\Support\DecimalId;
+use App\Support\DecimalLimit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -95,7 +96,7 @@ class InventoryAlertController extends Controller
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $request->user()->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->whereIn('role.code', ['chain_owner', 'branch_manager'])
             ->get(['role.code', 'branch.id as branch_id', 'branch.chain_id']);
         $warehouses->transform(function ($warehouse) use ($assignments) {
@@ -123,7 +124,7 @@ class InventoryAlertController extends Controller
     {
         $warehouseId = DecimalId::parse($warehouseId, 'warehouse_id');
         $productId = DecimalId::parse($productId, 'product_id');
-        $data = $request->validate(['min_stock_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3']]);
+        $data = $request->validate(['min_stock_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3', DecimalLimit::rule(15, 3)]]);
         $warehouse = DB::table('warehouses as warehouse')
             ->join('branches as branch', 'branch.id', '=', 'warehouse.branch_id')
             ->join('chains as chain', 'chain.id', '=', 'branch.chain_id')
@@ -137,7 +138,7 @@ class InventoryAlertController extends Controller
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $request->user()->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where(function ($query) use ($warehouse): void {
                 $query->where(function ($query) use ($warehouse): void {
                     $query->where('role.code', 'branch_manager')->where('assignment.branch_id', $warehouse->branch_id);

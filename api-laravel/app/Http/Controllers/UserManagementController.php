@@ -89,7 +89,7 @@ class UserManagementController extends Controller
             ]);
             DB::table('user_role_assignments')->insert([
                 'user_id' => $id, 'role_id' => $roleId, 'branch_id' => $branch->id,
-                'starts_on' => now()->toDateString(), 'status' => 'active',
+                'starts_on' => now('Asia/Ho_Chi_Minh')->toDateString(), 'status' => 'active',
             ]);
 
             return $id;
@@ -138,7 +138,7 @@ class UserManagementController extends Controller
 
             return DB::table('user_role_assignments')->insertGetId([
                 'user_id' => $id, 'role_id' => $roleId, 'branch_id' => $branch->id,
-                'starts_on' => now()->toDateString(), 'status' => 'active',
+                'starts_on' => now('Asia/Ho_Chi_Minh')->toDateString(), 'status' => 'active',
             ]);
         });
 
@@ -212,7 +212,7 @@ class UserManagementController extends Controller
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->join('users as user', 'user.id', '=', 'assignment.user_id')
             ->where('branch.chain_id', $chainId)->where('role.code', 'chain_owner')
-            ->where('assignment.status', 'active')->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->where('assignment.status', 'active')->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where('user.is_active', true);
         if ($excludedUserId !== null) $query->where('assignment.user_id', '!=', $excludedUserId);
         if ($excludedAssignmentId !== null) $query->where('assignment.id', '!=', $excludedAssignmentId);

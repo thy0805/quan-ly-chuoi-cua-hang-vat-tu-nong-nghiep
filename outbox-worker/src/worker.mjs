@@ -1,6 +1,7 @@
 import { MongoClient } from "mongodb"
 import pg from "pg"
-import { auditDocument, backoffSeconds, decimalId, safeError } from "./contract.mjs"
+import { auditDocument, backoffSeconds, safeError } from "./contract.mjs"
+import { syncNotifications } from "./notifications.mjs"
 import { ensureCollections } from "./schema.mjs"
 import { rebuildForEvent } from "./snapshots.mjs"
 
@@ -56,32 +57,7 @@ async function deliver(event) {
       schemaReady = true
     }
     await database.collection("audit_logs").replaceOne({ _id: String(event.id) }, auditDocument(event), { upsert: true })
-    if (event.event_type === "inventory.alert_opened") {
-      const payload = typeof event.payload === "string" ? JSON.parse(event.payload) : event.payload
-      const incidentId = decimalId(event.aggregate_id)
-      const incident = await pool.query("SELECT status, resolved_at FROM inventory_alert_incidents WHERE id = $1", [incidentId])
-      if (!incident.rows[0]) throw new Error("Sự cố cảnh báo không còn tồn tại")
-      const resolvedAt = incident.rows[0].resolved_at ? new Date(incident.rows[0].resolved_at) : null
-      const users = [...new Set(payload.recipient_user_ids.map(decimalId))]
-      for (const userId of users) {
-        await database.collection("notifications").updateOne({ _id: `${event.id}:${userId}` }, {
-          $setOnInsert: {
-            event_id: decimalId(event.id), user_id: userId, branch_id: decimalId(payload.branch_id),
-            incident_id: incidentId, kind: payload.kind, status: "unread", message: payload.message,
-            created_at: new Date(event.created_at), read_at: null,
-          },
-          $set: { resolved_at: resolvedAt },
-        }, { upsert: true })
-      }
-    }
-    if (event.event_type === "inventory.alert_resolved") {
-      const incidentId = decimalId(event.aggregate_id)
-      const incident = await pool.query("SELECT resolved_at FROM inventory_alert_incidents WHERE id = $1", [incidentId])
-      if (!incident.rows[0]?.resolved_at) throw new Error("Sự cố cảnh báo chưa được giải quyết")
-      await database.collection("notifications").updateMany({ incident_id: incidentId }, {
-        $set: { resolved_at: new Date(incident.rows[0].resolved_at) },
-      })
-    }
+    await syncNotifications(pool, database, event)
     await rebuildForEvent(pool, database, event)
     const result = await pool.query(`UPDATE outbox_events SET status = 'published', published_at = now(),
       locked_at = NULL, last_error = NULL WHERE id = $1 AND status = 'processing' AND attempt_count = $2`,

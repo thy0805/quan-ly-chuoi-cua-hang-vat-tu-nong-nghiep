@@ -47,6 +47,7 @@ class SaleService
                     throw ValidationException::withMessages(["items.{$index}.lot_id" => 'Vật tư chưa được cấu hình thuế suất.']);
                 }
                 $gross = BigDecimal::of((string) $product->sale_price)->multipliedBy((string) $item['quantity'])->toScale(2, RoundingMode::HalfUp);
+                DecimalLimit::assertFits($gross, 16, 2, "items.{$index}.quantity");
                 $discount = BigDecimal::of((string) ($item['discount_amount'] ?? '0'));
                 if ($discount->isGreaterThan($gross)) {
                     throw ValidationException::withMessages(["items.{$index}.discount_amount" => 'Chiết khấu vượt tiền dòng.']);
@@ -73,6 +74,13 @@ class SaleService
             $order = DB::table('sales_orders')->where('id', $orderId)->lockForUpdate()->first();
             abort_if($order === null, 404);
             abort_unless($order->status === 'draft', 409);
+            $branch = DB::table('branches as branch')
+                ->join('chains as chain', 'chain.id', '=', 'branch.chain_id')
+                ->where('branch.id', $order->branch_id)->lockForUpdate()
+                ->first(['branch.is_active as branch_active', 'chain.is_active as chain_active']);
+            if ($branch === null || ! $branch->branch_active || ! $branch->chain_active) {
+                throw ValidationException::withMessages(['branch_id' => 'Chi nhánh hoặc chuỗi đã ngừng hoạt động.']);
+            }
             DB::table('warehouses')->where('id', $order->warehouse_id)->lockForUpdate()->first();
             $items = DB::table('sales_order_items')->where('order_id', $orderId)->orderBy('lot_id')->get();
             abort_if($items->isEmpty(), 422);
@@ -93,6 +101,9 @@ class SaleService
                     || ($lot->expires_on !== null && $lot->expires_on < now('Asia/Ho_Chi_Minh')->toDateString())) {
                     throw ValidationException::withMessages(['items' => 'Lô hoặc vật tư không còn hợp lệ.']);
                 }
+                if ($item->tax_rate_snapshot === null || $item->tax_amount === null) {
+                    throw ValidationException::withMessages(['items' => 'Đơn thiếu dữ liệu thuế đã chụp; cần lập lại trước khi xác nhận.']);
+                }
                 if ($lot->tax_rate === null || BigDecimal::of((string) $lot->sale_price)->compareTo((string) $item->unit_price) !== 0
                     || BigDecimal::of((string) $lot->tax_rate)->compareTo((string) $item->tax_rate_snapshot) !== 0) {
                     throw ValidationException::withMessages(['items' => 'Giá hoặc thuế suất đã thay đổi; cần lập lại đơn trước khi xác nhận.']);
@@ -105,6 +116,7 @@ class SaleService
                     throw ValidationException::withMessages(['items' => 'Lô chưa có giá vốn đã xác minh.']);
                 }
                 $costTotal = $quantity->multipliedBy((string) $inventory->average_unit_cost)->toScale(2, RoundingMode::HalfUp);
+                DecimalLimit::assertFits($costTotal, 16, 2, 'items');
                 DB::table('sales_order_items')->where('id', $item->id)->update([
                     'unit_cost_snapshot' => $inventory->average_unit_cost,
                     'cost_total' => (string) $costTotal,
@@ -125,6 +137,10 @@ class SaleService
                 $taxTotal = $taxTotal->plus((string) $item->tax_amount);
             }
             $total = $subtotal->minus($discountTotal)->plus($taxTotal)->toScale(2);
+            DecimalLimit::assertFits($subtotal, 16, 2, 'items');
+            DecimalLimit::assertFits($discountTotal, 16, 2, 'items');
+            DecimalLimit::assertFits($taxTotal, 16, 2, 'items');
+            DecimalLimit::assertFits($total, 16, 2, 'items');
             $paid = BigDecimal::of((string) $payment['amount'])->toScale(2);
             if ($paid->isGreaterThan($total)) {
                 throw ValidationException::withMessages(['amount' => 'Số tiền thu vượt tổng hóa đơn.']);
@@ -165,6 +181,7 @@ class SaleService
                     ]);
                 }
             }
+            if ($debtId !== null) app(DebtService::class)->refreshStatus($debtId);
             app(OutboxService::class)->record('sales_order', $orderId, 'sale.confirmed', [
                 'actor_id' => $actorId, 'branch_id' => (string) $order->branch_id,
                 'warehouse_id' => (string) $order->warehouse_id,

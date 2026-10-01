@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
 use App\Support\DecimalId;
+use App\Support\DecimalLimit;
 use App\Support\OutboxService;
 use App\Support\StockTransferService;
 use App\Support\TransferAccess;
@@ -123,7 +124,7 @@ class StockTransferController extends Controller
             'to_warehouse_id' => ['required', 'string'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.lot_id' => ['required', 'string'],
-            'items.*.requested_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.requested_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
             'items.*.dispatched_quantity' => ['prohibited'], 'items.*.received_quantity' => ['prohibited'],
         ]);
         $fromId = DecimalId::parse($data['from_warehouse_id'], 'from_warehouse_id');
@@ -221,9 +222,9 @@ class StockTransferController extends Controller
             'reason' => ['required', 'string', 'min:3', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.lot_id' => ['required', 'string'],
-            'items.*.supplemental_received_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
-            'items.*.returned_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
-            'items.*.lost_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
+            'items.*.supplemental_received_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
+            'items.*.returned_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
+            'items.*.lost_quantity' => ['required', 'numeric', 'min:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
         ]);
         if (mb_strlen(trim($data['reason'])) < 3) {
             throw ValidationException::withMessages(['reason' => 'Lý do đối soát cần ít nhất 3 ký tự.']);
@@ -248,7 +249,7 @@ class StockTransferController extends Controller
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.lot_id' => ['required', 'string'],
-            "items.*.{$field}" => ['required', 'numeric', 'min:0', 'decimal:0,3'],
+            "items.*.{$field}" => ['required', 'numeric', 'min:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
         ]);
         $quantities = [];
         foreach ($data['items'] as $index => $item) {

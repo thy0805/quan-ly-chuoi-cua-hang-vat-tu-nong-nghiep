@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
 use App\Support\DecimalId;
+use App\Support\DecimalLimit;
 use App\Support\SaleService;
 use App\Support\SalesAccess;
 use Illuminate\Http\JsonResponse;
@@ -114,8 +115,8 @@ class SalesOrderController extends Controller
             'season_label' => ['nullable', 'string', 'max:120'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.lot_id' => ['required', 'string'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'decimal:0,2'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'decimal:0,2', DecimalLimit::rule(16, 2)],
             'created_by' => ['prohibited'], 'order_no' => ['prohibited'], 'total_amount' => ['prohibited'],
         ]);
         foreach (['branch_id', 'warehouse_id'] as $field) $data[$field] = DecimalId::parse($data[$field], $field);

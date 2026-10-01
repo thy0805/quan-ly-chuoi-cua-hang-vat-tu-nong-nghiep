@@ -1,7 +1,7 @@
 export function decimalId(value) {
-  const text = String(value)
-  if (!/^[1-9]\d*$/.test(text)) throw new Error("ID phải là chuỗi thập phân dương")
-  return text
+  if (typeof value !== "string" || !/^[1-9]\d{0,18}$/.test(value)
+    || BigInt(value) > 9223372036854775807n) throw new Error("ID phải là chuỗi thập phân dương trong phạm vi BIGINT")
+  return value
 }
 
 export function backoffSeconds(attempt) {

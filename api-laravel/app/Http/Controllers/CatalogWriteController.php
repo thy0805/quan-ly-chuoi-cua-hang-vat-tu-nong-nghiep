@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\CatalogPermission;
 use App\Support\DecimalId;
+use App\Support\DecimalLimit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +115,7 @@ class CatalogWriteController extends Controller
             'code' => ['required', 'string', 'max:60', Rule::unique('products', 'code')],
             'name' => ['required', 'string', 'max:200'],
             'active_ingredient' => ['nullable', 'string', 'max:200'],
-            'sale_price' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
+            'sale_price' => ['required', 'numeric', 'min:0', 'decimal:0,2', DecimalLimit::rule(16, 2)],
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'expiry_warning_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
             'category_id' => ['bail', 'required', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],
@@ -145,7 +146,7 @@ class CatalogWriteController extends Controller
             'code' => ['sometimes', 'required', 'string', 'max:60', Rule::unique('products', 'code')->ignore($id)],
             'name' => ['sometimes', 'required', 'string', 'max:200'],
             'active_ingredient' => ['sometimes', 'nullable', 'string', 'max:200'],
-            'sale_price' => ['sometimes', 'required', 'numeric', 'min:0', 'decimal:0,2'],
+            'sale_price' => ['sometimes', 'required', 'numeric', 'min:0', 'decimal:0,2', DecimalLimit::rule(16, 2)],
             'tax_rate' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'expiry_warning_days' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:3650'],
             'category_id' => ['bail', 'sometimes', 'required', 'string', DecimalId::rule(), Rule::exists('product_categories', 'id')],

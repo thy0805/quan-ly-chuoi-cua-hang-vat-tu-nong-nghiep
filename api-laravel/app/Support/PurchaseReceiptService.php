@@ -42,6 +42,7 @@ class PurchaseReceiptService
                 $lineTotal = BigDecimal::of((string) $item['quantity'])
                     ->multipliedBy((string) $item['unit_cost'])
                     ->toScale(2, RoundingMode::HalfUp);
+                DecimalLimit::assertFits($lineTotal, 16, 2, 'items');
                 $total = $total->plus($lineTotal);
                 $lines[] = [
                     'receipt_id' => $receiptId,
@@ -52,6 +53,7 @@ class PurchaseReceiptService
                 ];
             }
 
+            DecimalLimit::assertFits($total, 16, 2, 'items');
             if ($receipt !== null) {
                 DB::table('purchase_receipt_items')->where('receipt_id', $receiptId)->delete();
             }
@@ -73,6 +75,14 @@ class PurchaseReceiptService
             abort_unless($receipt->status === 'submitted', 409);
             abort_if((int) $receipt->created_by === $approverId, 403);
 
+            $scope = DB::table('warehouses as warehouse')
+                ->join('branches as branch', 'branch.id', '=', 'warehouse.branch_id')
+                ->join('chains as chain', 'chain.id', '=', 'branch.chain_id')
+                ->where('warehouse.id', $receipt->warehouse_id)->lockForUpdate()
+                ->first(['branch.is_active as branch_active', 'chain.is_active as chain_active']);
+            if ($scope === null || ! $scope->branch_active || ! $scope->chain_active) {
+                throw ValidationException::withMessages(['warehouse_id' => 'Chi nhánh hoặc chuỗi đã ngừng hoạt động.']);
+            }
             DB::table('warehouses')->where('id', $receipt->warehouse_id)->lockForUpdate()->first();
             $items = DB::table('purchase_receipt_items')->where('receipt_id', $receiptId)->orderBy('lot_id')->get();
             abort_if($items->isEmpty(), 422);
@@ -88,9 +98,11 @@ class PurchaseReceiptService
                 }
                 $addedQuantity = BigDecimal::of((string) $item->quantity);
                 $newQuantity = $oldQuantity->plus($addedQuantity);
+                DecimalLimit::assertFits($newQuantity->toScale(3), 15, 3, 'items');
                 $oldValue = $oldQuantity->isZero() ? BigDecimal::zero() : $oldQuantity->multipliedBy((string) $inventory->average_unit_cost);
                 $addedValue = $addedQuantity->multipliedBy((string) $item->unit_cost);
                 $averageCost = $oldValue->plus($addedValue)->dividedBy($newQuantity, 6, RoundingMode::HalfUp);
+                DecimalLimit::assertFits($averageCost, 12, 6, 'items');
                 $values = [
                     'quantity' => (string) $newQuantity->toScale(3),
                     'average_unit_cost' => (string) $averageCost,

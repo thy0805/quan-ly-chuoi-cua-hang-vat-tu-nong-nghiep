@@ -60,7 +60,7 @@ class OutboxController extends Controller
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $request->user()->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where('role.code', 'chain_owner')->pluck('branch.chain_id')->unique()->all();
 
         return DB::table('branches')->whereIn('chain_id', $chainIds)->pluck('id')->map(fn ($id) => (string) $id)->all();

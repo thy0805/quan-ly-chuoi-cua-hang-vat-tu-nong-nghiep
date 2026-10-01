@@ -17,7 +17,7 @@ class CatalogPermission
             ->join('roles as role', 'role.id', '=', 'assignment.role_id')
             ->where('assignment.user_id', $user->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where('role.code', 'chain_owner')
             ->exists();
     }

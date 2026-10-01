@@ -24,7 +24,7 @@ class DebtAccess
             ->join('branches as assigned_branch', 'assigned_branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $user->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where(function ($query) use ($type, $branchId, $chainId): void {
                 $query->where(function ($query) use ($chainId): void {
                     $query->where('role.code', 'chain_owner')->where('assigned_branch.chain_id', $chainId);

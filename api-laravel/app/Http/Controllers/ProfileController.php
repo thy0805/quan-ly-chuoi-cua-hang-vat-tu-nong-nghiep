@@ -19,7 +19,7 @@ class ProfileController extends Controller
             ->join('roles as role', 'role.id', '=', 'assignment.role_id')
             ->where('assignment.user_id', $request->user()->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where('role.code', 'chain_owner')->exists();
 
         return response()->json([

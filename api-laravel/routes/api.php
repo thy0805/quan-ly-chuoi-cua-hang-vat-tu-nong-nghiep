@@ -19,9 +19,10 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\SerializeBigIntIds;
+use App\Http\Middleware\ValidateBigIntRouteIds;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', EnsureActiveUser::class, SerializeBigIntIds::class])->group(function (): void {
+Route::middleware(['auth:sanctum', EnsureActiveUser::class, ValidateBigIntRouteIds::class, SerializeBigIntIds::class])->group(function (): void {
     Route::get('/me', [ProfileController::class, 'show']);
     Route::get('/outbox', [OutboxController::class, 'index']);
     Route::post('/outbox/{id}/retry', [OutboxController::class, 'retry'])->whereNumber('id');

@@ -14,7 +14,7 @@ class SalesAccess
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $user->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->where(function ($query) use ($branchId, $chainId): void {
                 $query->where(function ($query) use ($branchId): void {
                     $query->where('assignment.branch_id', $branchId)

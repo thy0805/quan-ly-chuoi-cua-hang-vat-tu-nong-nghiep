@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\BranchAccess;
 use App\Support\DecimalId;
+use App\Support\DecimalLimit;
 use App\Support\PurchaseReceiptService;
 use App\Support\ReceiptAccess;
 use Illuminate\Http\JsonResponse;
@@ -112,8 +113,15 @@ class PurchaseReceiptController extends Controller
             $receipt = DB::table('purchase_receipts')->where('id', $id)->lockForUpdate()->first();
             abort_unless($receipt->status === 'draft', 409);
             abort_unless((int) $receipt->created_by === (int) $request->user()->id, 403);
-            $branchId = DB::table('warehouses')->where('id', $receipt->warehouse_id)->value('branch_id');
-            abort_unless($access->canCreate($request->user(), (int) $branchId), 403);
+            $scope = DB::table('warehouses as warehouse')
+                ->join('branches as branch', 'branch.id', '=', 'warehouse.branch_id')
+                ->join('chains as chain', 'chain.id', '=', 'branch.chain_id')
+                ->where('warehouse.id', $receipt->warehouse_id)->lockForUpdate()
+                ->first(['branch.id as branch_id', 'branch.is_active as branch_active', 'chain.is_active as chain_active']);
+            if ($scope === null || ! $scope->branch_active || ! $scope->chain_active) {
+                throw ValidationException::withMessages(['warehouse_id' => 'Chi nhánh hoặc chuỗi đã ngừng hoạt động.']);
+            }
+            abort_unless($access->canCreate($request->user(), (int) $scope->branch_id), 403);
             abort_if(! DB::table('purchase_receipt_items')->where('receipt_id', $id)->exists(), 422);
             DB::table('purchase_receipts')->where('id', $id)->update(['status' => 'submitted', 'submitted_at' => now()]);
         });
@@ -160,8 +168,8 @@ class PurchaseReceiptController extends Controller
             'items.*.lot_no' => ['required', 'string', 'max:80'],
             'items.*.manufactured_on' => ['nullable', 'date_format:Y-m-d'],
             'items.*.expires_on' => ['nullable', 'date_format:Y-m-d'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'items.*.unit_cost' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3', DecimalLimit::rule(15, 3)],
+            'items.*.unit_cost' => ['required', 'numeric', 'min:0', 'decimal:0,2', DecimalLimit::rule(16, 2)],
             'items.*.line_total' => ['prohibited'],
         ]);
         foreach ($data['items'] as $index => $item) {

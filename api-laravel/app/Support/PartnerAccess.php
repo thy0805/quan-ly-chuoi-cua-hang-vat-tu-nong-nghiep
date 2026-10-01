@@ -15,7 +15,7 @@ class PartnerAccess
             ->join('branches as branch', 'branch.id', '=', 'assignment.branch_id')
             ->where('assignment.user_id', $user->id)
             ->where('assignment.status', 'active')
-            ->whereDate('assignment.starts_on', '<=', now()->toDateString())
+            ->whereDate('assignment.starts_on', '<=', now('Asia/Ho_Chi_Minh')->toDateString())
             ->whereIn('role.code', $roles)
             ->distinct()
             ->pluck('branch.chain_id');

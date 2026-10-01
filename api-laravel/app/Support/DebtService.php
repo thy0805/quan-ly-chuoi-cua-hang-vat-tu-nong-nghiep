@@ -32,6 +32,9 @@ class DebtService
     public function payCharge(string $chargeId, User $actor, array $data): array
     {
         return DB::transaction(function () use ($chargeId, $actor, $data): array {
+            if (DB::getDriverName() === 'pgsql') {
+                DB::select('SELECT pg_advisory_xact_lock(18602704, hashtext(?))', [$data['request_key']]);
+            }
             $charge = DB::table('debt_transactions')->where('id', $chargeId)
                 ->whereIn('transaction_type', ['sale_charge', 'purchase_charge'])->first();
             abort_if($charge === null, 404);
@@ -80,12 +83,7 @@ class DebtService
             if ($sourceField === 'invoice_id' && $amount->isEqualTo($remaining)) {
                 DB::table('invoices')->where('id', $charge->invoice_id)->update(['status' => 'paid']);
             }
-            $allCharges = DB::table('debt_transactions')->where('debt_id', $debt->id)
-                ->whereIn('transaction_type', ['sale_charge', 'purchase_charge'])->sum('amount');
-            $allPayments = DB::table('debt_transactions')->where('debt_id', $debt->id)
-                ->whereNotNull('payment_id')->sum('amount');
-            $balance = BigDecimal::of((string) $debt->opening_balance)->plus((string) $allCharges)->minus((string) $allPayments);
-            DB::table('debts')->where('id', $debt->id)->update(['status' => $balance->isZero() ? 'closed' : 'open']);
+            $this->refreshStatus((string) $debt->id);
             app(OutboxService::class)->record('payment', (string) $paymentId, 'debt.payment_recorded', [
                 'actor_id' => (string) $actor->id, 'debt_id' => (string) $debt->id,
                 'charge_id' => $chargeId, 'branch_id' => (string) $charge->branch_id,
@@ -96,6 +94,17 @@ class DebtService
 
             return ['id' => (string) $paymentId, 'status' => 'completed', 'remaining_amount' => (string) $remaining->minus($amount), 'replayed' => false];
         });
+    }
+
+    public function refreshStatus(string $debtId): void
+    {
+        $debt = DB::table('debts')->where('id', $debtId)->lockForUpdate()->first();
+        $allCharges = DB::table('debt_transactions')->where('debt_id', $debtId)
+            ->whereIn('transaction_type', ['sale_charge', 'purchase_charge'])->sum('amount');
+        $allPayments = DB::table('debt_transactions')->where('debt_id', $debtId)
+            ->whereNotNull('payment_id')->sum('amount');
+        $balance = BigDecimal::of((string) $debt->opening_balance)->plus((string) $allCharges)->minus((string) $allPayments);
+        DB::table('debts')->where('id', $debtId)->update(['status' => $balance->isZero() ? 'closed' : 'open']);
     }
 
     private function recordCharge(string $partnerField, string $partnerId, string $type,
