@@ -66,7 +66,7 @@ export default function CatalogPage() {
       <div>
         <p className="text-sm font-medium text-primary">Danh mục toàn hệ thống</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em]">Vật tư nông nghiệp</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Tra cứu nhóm, hoạt chất, đơn vị và giá bán chung. Quyền chỉnh sửa dành cho Chủ chuỗi.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Tra cứu nhóm, hoạt chất, đơn vị và giá bán chung. Chỉ Chủ chuỗi được chỉ định quản trị danh mục chung có quyền chỉnh sửa.</p>
       </div>
 
       {error && <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-300 px-3 font-semibold hover:bg-red-100"><RotateCw className="size-4" />Thử lại</button></div>}
