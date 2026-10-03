@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -12,59 +13,80 @@ class PurchaseReceiptService
 {
     public function saveDraft(array $data, int $creatorId, ?int $receiptId = null): int
     {
-        return DB::transaction(function () use ($data, $creatorId, $receiptId): int {
-            $receipt = null;
-            if ($receiptId !== null) {
-                $receipt = DB::table('purchase_receipts')->where('id', $receiptId)->lockForUpdate()->first();
-                abort_if($receipt === null, 404);
-                abort_unless($receipt->status === 'draft' && (int) $receipt->created_by === $creatorId, 403);
-                abort_unless((int) $receipt->warehouse_id === (int) $data['warehouse_id'], 422);
-            } else {
-                $receiptId = DB::table('purchase_receipts')->insertGetId([
-                    'supplier_id' => $data['supplier_id'],
-                    'warehouse_id' => $data['warehouse_id'],
-                    'created_by' => $creatorId,
-                    'receipt_no' => 'PN-'.Str::ulid(),
-                    'status' => 'draft',
-                    'total_amount' => 0,
-                ]);
-            }
-
-            $total = BigDecimal::zero();
-            $lines = [];
-            $seen = [];
-            foreach ($data['items'] as $item) {
-                $lotId = $this->findOrCreateLot($item);
-                if (isset($seen[$lotId])) {
-                    throw ValidationException::withMessages(['items' => 'Một lô chỉ xuất hiện một lần trong phiếu.']);
+        try {
+            return DB::transaction(function () use ($data, $creatorId, $receiptId): int {
+                $receipt = null;
+                if ($receiptId !== null) {
+                    $receipt = DB::table('purchase_receipts')->where('id', $receiptId)->lockForUpdate()->first();
+                    abort_if($receipt === null, 404);
+                    abort_unless($receipt->status === 'draft' && (int) $receipt->created_by === $creatorId, 403);
+                    abort_unless((int) $receipt->warehouse_id === (int) $data['warehouse_id'], 422);
+                } else {
+                    $receiptId = DB::table('purchase_receipts')->insertGetId([
+                        'supplier_id' => $data['supplier_id'],
+                        'warehouse_id' => $data['warehouse_id'],
+                        'created_by' => $creatorId,
+                        'receipt_no' => 'PN-'.Str::ulid(),
+                        'status' => 'draft',
+                        'total_amount' => 0,
+                    ]);
                 }
-                $seen[$lotId] = true;
-                $lineTotal = BigDecimal::of((string) $item['quantity'])
-                    ->multipliedBy((string) $item['unit_cost'])
-                    ->toScale(2, RoundingMode::HalfUp);
-                DecimalLimit::assertFits($lineTotal, 16, 2, 'items');
-                $total = $total->plus($lineTotal);
-                $lines[] = [
-                    'receipt_id' => $receiptId,
-                    'lot_id' => $lotId,
-                    'quantity' => (string) BigDecimal::of((string) $item['quantity'])->toScale(3),
-                    'unit_cost' => (string) BigDecimal::of((string) $item['unit_cost'])->toScale(2),
-                    'line_total' => (string) $lineTotal,
-                ];
-            }
 
-            DecimalLimit::assertFits($total, 16, 2, 'items');
-            if ($receipt !== null) {
-                DB::table('purchase_receipt_items')->where('receipt_id', $receiptId)->delete();
-            }
-            DB::table('purchase_receipt_items')->insert($lines);
-            DB::table('purchase_receipts')->where('id', $receiptId)->update([
-                'supplier_id' => $data['supplier_id'],
-                'total_amount' => (string) $total->toScale(2),
-            ]);
+                $total = BigDecimal::zero();
+                $lines = [];
+                $seen = [];
+                foreach ($data['items'] as $item) {
+                    $lotId = $this->findOrCreateLot($item);
+                    if (isset($seen[$lotId])) {
+                        throw ValidationException::withMessages(['items' => 'Một lô chỉ xuất hiện một lần trong phiếu.']);
+                    }
+                    $seen[$lotId] = true;
+                    $lineTotal = BigDecimal::of((string) $item['quantity'])
+                        ->multipliedBy((string) $item['unit_cost'])
+                        ->toScale(2, RoundingMode::HalfUp);
+                    DecimalLimit::assertFits($lineTotal, 16, 2, 'items');
+                    $total = $total->plus($lineTotal);
+                    $lines[] = [
+                        'receipt_id' => $receiptId,
+                        'lot_id' => $lotId,
+                        'quantity' => (string) BigDecimal::of((string) $item['quantity'])->toScale(3),
+                        'unit_cost' => (string) BigDecimal::of((string) $item['unit_cost'])->toScale(2),
+                        'line_total' => (string) $lineTotal,
+                    ];
+                }
 
-            return $receiptId;
-        });
+                DecimalLimit::assertFits($total, 16, 2, 'items');
+                $invoiceNo = isset($data['supplier_invoice_no']) ? trim($data['supplier_invoice_no']) : null;
+                if ($invoiceNo === '') $invoiceNo = null;
+                if ($invoiceNo !== null) {
+                    $duplicate = DB::table('purchase_receipts')
+                        ->where('supplier_id', $data['supplier_id'])
+                        ->whereRaw('lower(trim(supplier_invoice_no)) = lower(?)', [$invoiceNo]);
+                    if ($receiptId !== null) $duplicate->where('id', '<>', $receiptId);
+                    if ($duplicate->exists()) {
+                        throw ValidationException::withMessages(['supplier_invoice_no' => 'Số hóa đơn này đã được ghi nhận cho nhà cung cấp.']);
+                    }
+                }
+                if ($receipt !== null) {
+                    DB::table('purchase_receipt_items')->where('receipt_id', $receiptId)->delete();
+                }
+                DB::table('purchase_receipt_items')->insert($lines);
+                DB::table('purchase_receipts')->where('id', $receiptId)->update([
+                    'supplier_id' => $data['supplier_id'],
+                    'total_amount' => (string) $total->toScale(2),
+                    'supplier_invoice_no' => $invoiceNo,
+                    'supplier_invoice_date' => $data['supplier_invoice_date'] ?? null,
+                    'supplier_invoice_total' => $data['supplier_invoice_total'] ?? null,
+                ]);
+
+                return $receiptId;
+            });
+        } catch (QueryException $exception) {
+            if (str_contains($exception->getMessage(), 'uq_purchase_receipts_supplier_invoice')) {
+                throw ValidationException::withMessages(['supplier_invoice_no' => 'Số hóa đơn này đã được ghi nhận cho nhà cung cấp.']);
+            }
+            throw $exception;
+        }
     }
 
     public function approve(int $receiptId, int $approverId): void
@@ -74,6 +96,7 @@ class PurchaseReceiptService
             abort_if($receipt === null, 404);
             abort_unless($receipt->status === 'submitted', 409);
             abort_if((int) $receipt->created_by === $approverId, 403);
+            $this->assertInvoiceComplete($receipt);
 
             $scope = DB::table('warehouses as warehouse')
                 ->join('branches as branch', 'branch.id', '=', 'warehouse.branch_id')
@@ -133,8 +156,21 @@ class PurchaseReceiptService
                 'branch_id' => (string) DB::table('warehouses')->where('id', $receipt->warehouse_id)->value('branch_id'),
                 'warehouse_id' => (string) $receipt->warehouse_id,
                 'supplier_id' => (string) $receipt->supplier_id, 'total_amount' => (string) $receipt->total_amount,
+                'supplier_invoice_no' => $receipt->supplier_invoice_no,
+                'supplier_invoice_date' => $receipt->supplier_invoice_date,
+                'supplier_invoice_total' => (string) $receipt->supplier_invoice_total,
             ]);
         });
+    }
+
+    public function assertInvoiceComplete(object $receipt): void
+    {
+        if ($receipt->supplier_invoice_no === null || trim($receipt->supplier_invoice_no) === '' || $receipt->supplier_invoice_date === null || $receipt->supplier_invoice_total === null) {
+            throw ValidationException::withMessages(['supplier_invoice_no' => 'Cần đủ số, ngày và tổng hóa đơn nhà cung cấp trước khi gửi duyệt.']);
+        }
+        if (! BigDecimal::of((string) $receipt->supplier_invoice_total)->isEqualTo((string) $receipt->total_amount)) {
+            throw ValidationException::withMessages(['supplier_invoice_total' => 'Tổng hóa đơn nhà cung cấp phải khớp tổng phiếu nhập trước khi gửi duyệt.']);
+        }
     }
 
     private function findOrCreateLot(array $item): int

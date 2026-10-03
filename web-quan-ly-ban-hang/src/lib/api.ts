@@ -180,6 +180,9 @@ export type UserManagementResponse = {
 export type PurchaseReceipt = {
   id: string
   receipt_no: string
+  supplier_invoice_no: string | null
+  supplier_invoice_date: string | null
+  supplier_invoice_total: string | null
   status: "draft" | "submitted" | "approved" | "rejected"
   total_amount: string
   received_at: string

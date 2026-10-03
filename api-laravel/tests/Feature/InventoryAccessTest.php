@@ -140,6 +140,9 @@ class InventoryAccessTest extends TestCase
             $table->foreignId('approved_by')->nullable();
             $table->foreignId('rejected_by')->nullable();
             $table->string('receipt_no');
+            $table->string('supplier_invoice_no')->nullable();
+            $table->date('supplier_invoice_date')->nullable();
+            $table->decimal('supplier_invoice_total', 18, 2)->nullable();
             $table->string('status');
             $table->decimal('total_amount', 18, 2);
             $table->timestamp('received_at')->nullable();
@@ -148,6 +151,7 @@ class InventoryAccessTest extends TestCase
             $table->timestamp('rejected_at')->nullable();
             $table->text('rejection_reason')->nullable();
         });
+        DB::statement("CREATE UNIQUE INDEX uq_purchase_receipts_supplier_invoice ON purchase_receipts (supplier_id, lower(trim(supplier_invoice_no))) WHERE supplier_invoice_no IS NOT NULL");
         Schema::create('purchase_receipt_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('receipt_id');
@@ -442,6 +446,9 @@ class InventoryAccessTest extends TestCase
             return [
                 'supplier_id' => (string) $supplier,
                 'warehouse_id' => (string) $warehouse,
+                'supplier_invoice_no' => 'HD-'.$quantity.'-'.$cost,
+                'supplier_invoice_date' => '2026-10-03',
+                'supplier_invoice_total' => $quantity === '2' ? '20.00' : '60.00',
                 'items' => [['product_id' => (string) $product, 'lot_no' => 'LO-MOI', 'quantity' => $quantity, 'unit_cost' => $cost]],
             ];
         };
@@ -493,6 +500,7 @@ class InventoryAccessTest extends TestCase
         $product = (string) DB::table('products')->value('id');
         $draft = [
             'supplier_id' => $supplier, 'warehouse_id' => $warehouse,
+            'supplier_invoice_no' => 'HD-ACTIVE', 'supplier_invoice_date' => '2026-10-03', 'supplier_invoice_total' => '10.00',
             'items' => [['product_id' => $product, 'lot_no' => 'LO-ACTIVE', 'quantity' => '1', 'unit_cost' => '10.00']],
         ];
         $this->actingAs($staff);
@@ -507,6 +515,55 @@ class InventoryAccessTest extends TestCase
         $this->assertSame('submitted', DB::table('purchase_receipts')->where('id', $id)->value('status'));
         $this->assertSame(0, DB::table('stock_movements')->where('purchase_receipt_id', $id)->count());
         $this->assertSame(0, DB::table('debt_transactions')->where('purchase_receipt_id', $id)->count());
+    }
+
+    public function test_supplier_invoice_is_required_to_submit_unique_per_supplier_and_keeps_receipt_as_payable_source(): void
+    {
+        [$branch] = $this->makeInventory();
+        $staff = $this->makeUser('sales_staff', $branch);
+        $owner = $this->makeUser('chain_owner', $branch);
+        $warehouse = (string) DB::table('warehouses')->where('branch_id', $branch)->value('id');
+        $chain = DB::table('branches')->where('id', $branch)->value('chain_id');
+        $firstSupplier = (string) DB::table('suppliers')->insertGetId(['chain_id' => $chain, 'name' => 'NCC thứ nhất']);
+        $secondSupplier = (string) DB::table('suppliers')->insertGetId(['chain_id' => $chain, 'name' => 'NCC thứ hai']);
+        $product = (string) DB::table('products')->value('id');
+        $draft = fn (string $supplier, string $lot) => [
+            'supplier_id' => $supplier, 'warehouse_id' => $warehouse,
+            'items' => [['product_id' => $product, 'lot_no' => $lot, 'quantity' => '2', 'unit_cost' => '25.00']],
+        ];
+        $invoice = ['supplier_invoice_no' => ' HD-01 ', 'supplier_invoice_date' => '2026-10-03', 'supplier_invoice_total' => '50.00'];
+
+        $this->actingAs($staff);
+        $id = $this->postJson('/api/purchase-receipts', $draft($firstSupplier, 'LO-HD01'))->assertCreated()->json('id');
+        $this->postJson('/api/purchase-receipts/'.$id.'/submit')->assertUnprocessable()->assertJsonValidationErrors('supplier_invoice_no');
+        $this->putJson('/api/purchase-receipts/'.$id, $draft($firstSupplier, 'LO-HD01') + array_replace($invoice, ['supplier_invoice_total' => '49.99']))
+            ->assertOk();
+        $this->postJson('/api/purchase-receipts/'.$id.'/submit')->assertUnprocessable()->assertJsonValidationErrors('supplier_invoice_total');
+        $this->assertSame('draft', DB::table('purchase_receipts')->where('id', $id)->value('status'));
+        $this->putJson('/api/purchase-receipts/'.$id, $draft($firstSupplier, 'LO-HD01') + $invoice)->assertOk();
+        $this->getJson('/api/purchase-receipts/'.$id)->assertJsonPath('data.supplier_invoice_no', 'HD-01')
+            ->assertJsonPath('data.supplier_invoice_date', '2026-10-03');
+        $this->assertNotSame('HD-01', DB::table('purchase_receipts')->where('id', $id)->value('receipt_no'));
+
+        $this->postJson('/api/purchase-receipts', $draft($firstSupplier, 'LO-HD02') + array_replace($invoice, ['supplier_invoice_no' => 'hd-01']))
+            ->assertUnprocessable()->assertJsonValidationErrors('supplier_invoice_no');
+        $other = $this->postJson('/api/purchase-receipts', $draft($secondSupplier, 'LO-HD03') + $invoice)
+            ->assertCreated()->json('id');
+        $this->assertNotSame($id, $other);
+
+        $rejected = $this->postJson('/api/purchase-receipts', $draft($firstSupplier, 'LO-HD04') + array_replace($invoice, ['supplier_invoice_no' => 'HD-REJECTED']))
+            ->assertCreated()->json('id');
+        $this->postJson('/api/purchase-receipts/'.$rejected.'/submit')->assertOk();
+        $this->actingAs($owner)->postJson('/api/purchase-receipts/'.$rejected.'/reject')->assertOk();
+        $this->actingAs($staff)->postJson('/api/purchase-receipts', $draft($firstSupplier, 'LO-HD05') + array_replace($invoice, ['supplier_invoice_no' => 'hd-rejected']))
+            ->assertUnprocessable()->assertJsonValidationErrors('supplier_invoice_no');
+
+        $this->postJson('/api/purchase-receipts/'.$id.'/submit')->assertOk();
+        $this->putJson('/api/purchase-receipts/'.$id, $draft($firstSupplier, 'LO-HD01') + $invoice)->assertForbidden();
+        $this->actingAs($owner)->postJson('/api/purchase-receipts/'.$id.'/approve')->assertOk();
+        $this->assertSame(1, DB::table('debt_transactions')->where('purchase_receipt_id', $id)->where('transaction_type', 'purchase_charge')->count());
+        $this->assertSame(1, DB::table('stock_movements')->where('purchase_receipt_id', $id)->count());
+        $this->postJson('/api/purchase-receipts/'.$id.'/approve')->assertStatus(409);
     }
 
     public function test_customer_master_is_scoped_to_chain_and_only_owner_can_write(): void
@@ -585,6 +642,7 @@ class InventoryAccessTest extends TestCase
         ]);
         $draft = fn (string $lot) => [
             'supplier_id' => (string) $supplier, 'warehouse_id' => (string) $warehouse,
+            'supplier_invoice_no' => 'HD-'.$lot, 'supplier_invoice_date' => '2026-10-03', 'supplier_invoice_total' => '200.00',
             'items' => [['product_id' => (string) $product, 'lot_no' => $lot, 'quantity' => '2.000', 'unit_cost' => '100.00']],
         ];
 
@@ -1278,6 +1336,7 @@ class InventoryAccessTest extends TestCase
         $this->actingAs($staff);
         $receipt = $this->postJson('/api/purchase-receipts', [
             'supplier_id' => (string) $supplier, 'warehouse_id' => $warehouse,
+            'supplier_invoice_no' => 'HD-INTEGRATED', 'supplier_invoice_date' => '2026-10-03', 'supplier_invoice_total' => '200.00',
             'items' => [['product_id' => (string) $product, 'lot_no' => 'LO01', 'quantity' => '2', 'unit_cost' => '100.00']],
         ])->assertCreated()->json('id');
         $this->postJson('/api/purchase-receipts/'.$receipt.'/submit')->assertOk();

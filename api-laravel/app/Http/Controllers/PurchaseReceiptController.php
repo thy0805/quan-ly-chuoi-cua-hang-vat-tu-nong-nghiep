@@ -35,6 +35,7 @@ class PurchaseReceiptController extends Controller
         if (isset($filters['status'])) $query->where('receipt.status', $filters['status']);
         $page = $query->select([
             'receipt.id', 'receipt.receipt_no', 'receipt.status', 'receipt.total_amount',
+            'receipt.supplier_invoice_no', 'receipt.supplier_invoice_date', 'receipt.supplier_invoice_total',
             'receipt.received_at', 'receipt.created_by', 'receipt.approved_by', 'receipt.rejected_by',
             'branch.id as branch_id', 'branch.chain_id', 'branch.name as branch_name',
             'warehouse.id as warehouse_id', 'warehouse.name as warehouse_name',
@@ -106,10 +107,10 @@ class PurchaseReceiptController extends Controller
         return response()->json(['id' => $id]);
     }
 
-    public function submit(Request $request, BranchAccess $branches, ReceiptAccess $access, int $id): JsonResponse
+    public function submit(Request $request, BranchAccess $branches, ReceiptAccess $access, PurchaseReceiptService $service, int $id): JsonResponse
     {
         $this->scopedReceipt($request, $branches, $id);
-        DB::transaction(function () use ($request, $access, $id): void {
+        DB::transaction(function () use ($request, $access, $service, $id): void {
             $receipt = DB::table('purchase_receipts')->where('id', $id)->lockForUpdate()->first();
             abort_unless($receipt->status === 'draft', 409);
             abort_unless((int) $receipt->created_by === (int) $request->user()->id, 403);
@@ -123,6 +124,7 @@ class PurchaseReceiptController extends Controller
             }
             abort_unless($access->canCreate($request->user(), (int) $scope->branch_id), 403);
             abort_if(! DB::table('purchase_receipt_items')->where('receipt_id', $id)->exists(), 422);
+            $service->assertInvoiceComplete($receipt);
             DB::table('purchase_receipts')->where('id', $id)->update(['status' => 'submitted', 'submitted_at' => now()]);
         });
 
@@ -161,6 +163,9 @@ class PurchaseReceiptController extends Controller
     {
         $data = $request->validate([
             'created_by' => ['prohibited'], 'approved_by' => ['prohibited'], 'receipt_no' => ['prohibited'], 'total_amount' => ['prohibited'],
+            'supplier_invoice_no' => ['nullable', 'string', 'max:60'],
+            'supplier_invoice_date' => ['nullable', 'date_format:Y-m-d'],
+            'supplier_invoice_total' => ['nullable', 'string', 'numeric', 'min:0', 'decimal:0,2', DecimalLimit::rule(16, 2)],
             'supplier_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:suppliers,id'],
             'warehouse_id' => ['bail', 'required', 'string', DecimalId::rule(), 'exists:warehouses,id'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
