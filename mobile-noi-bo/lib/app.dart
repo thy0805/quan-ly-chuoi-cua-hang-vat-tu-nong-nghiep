@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'auth/auth_controller.dart';
+import 'sales/cart_workspace.dart';
 import 'sales/sales_workspace.dart';
 
 const _ink = Color(0xFF153F36);
@@ -418,6 +419,18 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CartWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.shopping_cart_outlined),
+        label: const Text('Chuẩn bị bán hàng'),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
         onPressed: controller.busy ? null : controller.changeScope,
         icon: const Icon(Icons.swap_horiz),
         label: const Text('Đổi chi nhánh'),
@@ -429,7 +442,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Có thể xem lịch sử và chi tiết bán hàng. Tạo đơn, thanh toán và điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể xem lịch sử và chuẩn bị giỏ hàng. Tạo đơn, thanh toán và điều chuyển chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],
