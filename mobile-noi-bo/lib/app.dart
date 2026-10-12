@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'auth/auth_controller.dart';
+import 'sales/sales_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -404,6 +405,18 @@ class _Home extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 20),
+      FilledButton.icon(
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SalesWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.receipt_long_outlined),
+        label: const Text('Lịch sử bán hàng'),
+      ),
+      const SizedBox(height: 12),
       OutlinedButton.icon(
         onPressed: controller.busy ? null : controller.changeScope,
         icon: const Icon(Icons.swap_horiz),
@@ -416,7 +429,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Đăng nhập và phạm vi đã sẵn sàng. Bán hàng và điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể xem lịch sử và chi tiết bán hàng. Tạo đơn, thanh toán và điều chuyển chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],

@@ -1,3 +1,5 @@
+import '../core/numbers.dart';
+
 class Session {
   const Session({required this.token, required this.expiresAt, this.branchId});
 
@@ -35,8 +37,8 @@ class Branch {
   final String name;
 
   factory Branch.fromJson(Map<String, dynamic> json) => Branch(
-    id: json['id'] as String,
-    chainId: json['chain_id'] as String,
+    id: jsonId(json['id']),
+    chainId: jsonId(json['chain_id']),
     code: json['code'] as String,
     name: json['name'] as String,
   );
@@ -44,23 +46,26 @@ class Branch {
 
 class Profile {
   const Profile({
+    required this.userId,
     required this.username,
     required this.branches,
     required this.chains,
   });
 
+  final String userId;
   final String username;
   final List<Branch> branches;
   final Map<String, String> chains;
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
+    userId: jsonId((json['user'] as Map<String, dynamic>)['id']),
     username: (json['user'] as Map<String, dynamic>)['username'] as String,
     branches: (json['branches'] as List)
         .map((value) => Branch.fromJson(value as Map<String, dynamic>))
         .toList(),
     chains: {
       for (final value in json['chains'] as List)
-        value['id'] as String: value['name'] as String,
+        jsonId(value['id']): value['name'] as String,
     },
   );
 }

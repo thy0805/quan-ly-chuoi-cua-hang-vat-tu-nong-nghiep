@@ -16,6 +16,63 @@ class AuthController extends ChangeNotifier {
   Session? _session;
   String? message;
   bool busy = false;
+  int _authorizationRevision = 0;
+
+  Future<Map<String, dynamic>> readSales(String path) async {
+    final session = _session;
+    final userId = profile?.userId;
+    final revision = _authorizationRevision;
+    if (session == null || !session.expiresAt.isAfter(DateTime.now())) {
+      await _rejectBusinessSession(
+        const ApiFailure('Phiên đăng nhập đã hết hạn.', status: 401),
+      );
+    }
+    if (stage != AuthStage.ready || busy || branch == null) {
+      throw const ApiFailure(
+        'Chưa có phạm vi làm việc đã xác minh.',
+        status: 403,
+      );
+    }
+    try {
+      final data = await api.readSales(session, path);
+      if (_session != session ||
+          profile?.userId != userId ||
+          revision != _authorizationRevision ||
+          stage != AuthStage.ready ||
+          busy) {
+        throw const ApiFailure(
+          'Phiên hoặc phạm vi đã thay đổi. Hãy tải lại trong nơi làm việc hiện tại.',
+        );
+      }
+      return data;
+    } on ApiFailure catch (error) {
+      if (error.status == 401 || error.status == 403) {
+        if (_session == session &&
+            profile?.userId == userId &&
+            revision == _authorizationRevision) {
+          await _rejectBusinessSession(error);
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Never> _rejectBusinessSession(ApiFailure error) async {
+    _authorizationRevision++;
+    message = error.message;
+    if (error.status == 401) {
+      try {
+        await _clear();
+      } catch (_) {
+        profile = null;
+        stage = AuthStage.unavailable;
+      }
+    } else {
+      stage = AuthStage.unavailable;
+    }
+    notifyListeners();
+    throw error;
+  }
 
   Branch? get branch {
     for (final item in profile?.branches ?? <Branch>[]) {
@@ -69,6 +126,7 @@ class AuthController extends ChangeNotifier {
   void changeScope() {
     if (busy || _session == null) return;
     message = null;
+    _authorizationRevision++;
     stage = AuthStage.chooseScope;
     notifyListeners();
   }
@@ -105,6 +163,7 @@ class AuthController extends ChangeNotifier {
     bool logoutOperation = false,
   }) async {
     if (busy) return;
+    _authorizationRevision++;
     busy = true;
     message = null;
     notifyListeners();
