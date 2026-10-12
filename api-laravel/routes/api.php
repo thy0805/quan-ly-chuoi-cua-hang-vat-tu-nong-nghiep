@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DebtController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryAlertController;
+use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OutboxController;
@@ -18,11 +19,18 @@ use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Middleware\EnsureActiveUser;
+use App\Http\Middleware\ValidateBearerToken;
 use App\Http\Middleware\SerializeBigIntIds;
 use App\Http\Middleware\ValidateBigIntRouteIds;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-Route::middleware(['auth:sanctum', EnsureActiveUser::class, ValidateBigIntRouteIds::class, SerializeBigIntIds::class])->group(function (): void {
+Route::withoutMiddleware(EnsureFrontendRequestsAreStateful::class)->group(function (): void {
+    Route::post('/mobile/login', [MobileAuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/mobile/logout', [MobileAuthController::class, 'logout'])->middleware(['throttle:30,1', ValidateBearerToken::class]);
+});
+
+Route::middleware([ValidateBearerToken::class, 'auth:sanctum', EnsureActiveUser::class, ValidateBigIntRouteIds::class, SerializeBigIntIds::class])->group(function (): void {
     Route::get('/me', [ProfileController::class, 'show']);
     Route::get('/outbox', [OutboxController::class, 'index']);
     Route::post('/outbox/{id}/retry', [OutboxController::class, 'retry'])->whereNumber('id');

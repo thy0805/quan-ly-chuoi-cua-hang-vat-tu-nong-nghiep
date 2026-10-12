@@ -1,0 +1,23 @@
+name: klcn186_mobile
+description: Ứng dụng nội bộ quản lý chuỗi cửa hàng vật tư nông nghiệp.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: 1.6.0
+  flutter_secure_storage: 9.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

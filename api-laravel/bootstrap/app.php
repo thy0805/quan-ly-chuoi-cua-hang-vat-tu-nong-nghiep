@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\ValidateBearerToken::class,
+        );
         $middleware->redirectGuestsTo(
             fn (Request $request) => $request->is('api/*') || $request->is('logout') ? null : route('login'),
         );
