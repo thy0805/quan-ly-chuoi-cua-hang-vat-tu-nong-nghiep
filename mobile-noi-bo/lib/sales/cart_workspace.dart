@@ -5,6 +5,7 @@ import '../auth/auth_controller.dart';
 import 'cart.dart';
 import 'models.dart';
 import 'repository.dart';
+import 'draft_workspace.dart';
 
 class CartWorkspace extends StatefulWidget {
   const CartWorkspace({super.key, required this.controller});
@@ -357,6 +358,33 @@ class _CartWorkspaceState extends State<CartWorkspace> {
             ),
           ],
         ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        key: const ValueKey('review-draft'),
+        onPressed:
+            totals == null || cart.lines.isEmpty || cart.warehouseId == null
+            ? null
+            : () {
+                try {
+                  final review = DraftReview.fromCart(widget.controller, cart);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DraftWorkspace(
+                        controller: widget.controller,
+                        review: review,
+                      ),
+                    ),
+                  );
+                } on FormatException catch (error) {
+                  setState(() {});
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                }
+              },
+        icon: const Icon(Icons.fact_check_outlined),
+        label: const Text('Xem lại và tạo nháp'),
+      ),
     ];
   }
 }

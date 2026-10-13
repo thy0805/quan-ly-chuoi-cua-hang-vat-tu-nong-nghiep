@@ -3,20 +3,56 @@ import 'package:flutter/foundation.dart';
 import 'api_client.dart';
 import 'models.dart';
 import 'session_store.dart';
+import '../sales/draft_attempt_store.dart';
+import '../sales/draft_submission.dart';
 
 enum AuthStage { restoring, signedOut, chooseScope, ready, unavailable }
 
 class AuthController extends ChangeNotifier {
-  AuthController(this.api, this.store);
+  AuthController(this.api, this.store, {DraftAttemptStore? draftStore}) {
+    drafts = DraftSubmission(this, draftStore ?? SecureDraftAttemptStore());
+  }
 
   final ApiClient api;
   final SessionStore store;
+  late final DraftSubmission drafts;
   AuthStage stage = AuthStage.restoring;
   Profile? profile;
   Session? _session;
   String? message;
   bool busy = false;
   int _authorizationRevision = 0;
+
+  Future<String> createSalesDraft(
+    Map<String, dynamic> payload, {
+    required String userId,
+  }) async {
+    final session = _session;
+    final revision = _authorizationRevision;
+    if (session == null ||
+        !session.expiresAt.isAfter(DateTime.now()) ||
+        stage != AuthStage.ready ||
+        busy ||
+        profile?.userId != userId ||
+        branch?.id != payload['branch_id']) {
+      throw const ApiFailure(
+        'Phiên hoặc chi nhánh đã đổi. Yêu cầu chưa được gửi.',
+        status: 403,
+        definiteRejection: true,
+      );
+    }
+    try {
+      return await api.createSalesDraft(session, payload);
+    } on ApiFailure catch (error) {
+      if ((error.status == 401 || error.status == 403) &&
+          _session == session &&
+          profile?.userId == userId &&
+          revision == _authorizationRevision) {
+        await _rejectBusinessSession(error);
+      }
+      rethrow;
+    }
+  }
 
   Future<Map<String, dynamic>> readSales(String path) async {
     final session = _session;
@@ -196,6 +232,7 @@ class AuthController extends ChangeNotifier {
 
   @override
   void dispose() {
+    drafts.dispose();
     api.close();
     super.dispose();
   }

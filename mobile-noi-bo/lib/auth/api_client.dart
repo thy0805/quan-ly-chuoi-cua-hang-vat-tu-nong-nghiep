@@ -27,12 +27,14 @@ class ApiFailure implements Exception {
     this.status,
     ApiFailureKind? kind,
     this.fieldErrors = const {},
+    this.definiteRejection = false,
   }) : _kind = kind;
 
   final String message;
   final int? status;
   final ApiFailureKind? _kind;
   final Map<String, List<String>> fieldErrors;
+  final bool definiteRejection;
 
   ApiFailureKind get kind =>
       _kind ??
@@ -144,12 +146,35 @@ class ApiClient {
     return _request('GET', path, token: session.token);
   }
 
+  Future<String> createSalesDraft(
+    Session session,
+    Map<String, dynamic> payload,
+  ) async {
+    final data = await _request(
+      'POST',
+      '/api/sales-orders',
+      token: session.token,
+      body: payload,
+      draftOperation: true,
+    );
+    try {
+      if (data['status'] != 'draft') throw const FormatException();
+      return jsonId(data['id']);
+    } catch (_) {
+      throw const ApiFailure(
+        'Không xác minh được ID đơn nháp từ phản hồi.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _request(
     String method,
     String path, {
     String? token,
     Map<String, dynamic>? body,
     bool loginOperation = false,
+    bool draftOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -191,6 +216,23 @@ class ApiClient {
         _ => 'Không đọc được phản hồi từ API.',
       };
       final errors = <String, List<String>>{};
+      var definiteRejection = false;
+      if (draftOperation &&
+          {401, 403, 422}.contains(response.statusCode) &&
+          (response.headers['content-type'] ?? '')
+                  .split(';')
+                  .first
+                  .trim()
+                  .toLowerCase() ==
+              'application/json') {
+        try {
+          final body = jsonDecode(utf8.decode(response.bodyBytes));
+          definiteRejection =
+              body is Map &&
+              body['message'] is String &&
+              (response.statusCode != 422 || body['errors'] is Map);
+        } catch (_) {}
+      }
       if (!loginOperation && response.statusCode == 422) {
         try {
           final body = jsonDecode(utf8.decode(response.bodyBytes));
@@ -216,6 +258,13 @@ class ApiClient {
         message,
         status: response.statusCode,
         fieldErrors: Map.unmodifiable(errors),
+        definiteRejection: definiteRejection,
+      );
+    }
+    if (draftOperation && response.statusCode != 201) {
+      throw const ApiFailure(
+        'Phản hồi tạo nháp không đúng contract.',
+        kind: ApiFailureKind.invalidResponse,
       );
     }
     try {
