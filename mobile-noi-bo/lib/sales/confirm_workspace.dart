@@ -29,7 +29,9 @@ class _ConfirmWorkspaceState extends State<ConfirmWorkspace> {
     _origin = widget.controller.api.storageNamespace;
     _orderId = widget.controller.drafts.attempt?.orderId;
     _changes = Listenable.merge([widget.controller, widget.controller.drafts]);
-    unawaited(widget.controller.drafts.reloadDetail());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(widget.controller.drafts.reloadDetail());
+    });
   }
 
   @override
