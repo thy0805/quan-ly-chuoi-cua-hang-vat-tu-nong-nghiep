@@ -54,6 +54,39 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<void> confirmSalesDraft(
+    String id,
+    Map<String, dynamic> payment, {
+    required String userId,
+    required String branchId,
+  }) async {
+    final session = _session;
+    final revision = _authorizationRevision;
+    if (session == null ||
+        !session.expiresAt.isAfter(DateTime.now()) ||
+        stage != AuthStage.ready ||
+        busy ||
+        profile?.userId != userId ||
+        branch?.id != branchId) {
+      throw const ApiFailure(
+        'Phiên hoặc phạm vi đã đổi. Yêu cầu chưa được gửi.',
+        status: 403,
+        definiteRejection: true,
+      );
+    }
+    try {
+      await api.confirmSalesDraft(session, id, payment);
+    } on ApiFailure catch (error) {
+      if ((error.status == 401 || error.status == 403) &&
+          _session == session &&
+          profile?.userId == userId &&
+          revision == _authorizationRevision) {
+        await _rejectBusinessSession(error);
+      }
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> readSales(String path) async {
     final session = _session;
     final userId = profile?.userId;

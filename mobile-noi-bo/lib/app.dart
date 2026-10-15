@@ -455,7 +455,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Có thể xem lịch sử, chuẩn bị giỏ và tạo đơn nháp. Thanh toán, xác nhận bán và điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể chuẩn bị giỏ, tạo nháp, xác nhận bán và xem hóa đơn nội bộ. Thu nợ sau bán và điều chuyển chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],

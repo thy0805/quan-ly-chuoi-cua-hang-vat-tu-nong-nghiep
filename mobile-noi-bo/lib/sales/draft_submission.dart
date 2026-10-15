@@ -11,6 +11,8 @@ import 'cart.dart';
 import 'draft_attempt_store.dart';
 import 'models.dart';
 import 'repository.dart';
+import 'confirmation.dart';
+import 'sale_envelope.dart';
 
 class DraftPayload {
   DraftPayload.fromJson(Json json) {
@@ -221,6 +223,85 @@ class DraftSubmission extends ChangeNotifier {
   ApiFailure? _error;
   DraftState _state = DraftState.loading;
   final Map<String, DraftAttempt> _unsaved = {};
+  final Map<String, String> _unsavedRecords = {};
+  SaleEnvelope? _envelope;
+
+  ConfirmAttempt? get confirmation => visible ? _envelope?.confirmation : null;
+  bool get confirmUncertain =>
+      confirmation != null &&
+      {'pending', 'unknown', 'acknowledged'}.contains(confirmation!.state);
+  bool get canConfirm {
+    if (!visible ||
+        busy ||
+        _state != DraftState.knownId ||
+        confirmUncertain ||
+        detail == null ||
+        !detail!.order.isDraft ||
+        detail!.createdBy != auth.profile?.userId) {
+      return false;
+    }
+    try {
+      verifiedSaleTotal(detail!);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get canComplete {
+    if (!visible ||
+        busy ||
+        _state != DraftState.knownId ||
+        detail == null ||
+        detail!.order.isDraft) {
+      return false;
+    }
+    try {
+      _verifyInvoice(detail!);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  FixedDecimal _verifyInvoice(SalesOrderDetail detail) {
+    final total = verifiedSaleTotal(detail);
+    final confirmation = _envelope?.confirmation;
+    if (confirmation != null &&
+        confirmation.state != 'rejected' &&
+        detail.paid!.compareTo(confirmation.payment.amount) < 0) {
+      throw const FormatException(
+        'Tiền đã thu chưa khớp lần xác nhận. Giữ dấu vết để đối chiếu.',
+      );
+    }
+    return total;
+  }
+
+  int get completedCount => visible ? (_envelope?.journal.length ?? 0) : 0;
+
+  String? get invoiceIssue {
+    final current = detail;
+    if (current == null || current.order.isDraft) return null;
+    try {
+      _verifyInvoice(current);
+      return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+  }
+
+  Future<void> _persistEnvelope(SaleEnvelope envelope) async {
+    final key = '${envelope.origin}|${envelope.userId}';
+    final raw = envelope.encode();
+    SaleEnvelope.decode(raw, envelope.origin, envelope.userId);
+    _unsavedRecords[key] = raw;
+    await store.write(envelope.origin, envelope.userId, raw);
+    if (await store.read(envelope.origin, envelope.userId) != raw) {
+      throw StateError('Không xác minh được bộ nhớ bán hàng.');
+    }
+    _unsavedRecords.remove(key);
+    _envelope = envelope;
+  }
 
   String? get _currentKey =>
       auth.stage == AuthStage.ready &&
@@ -256,9 +337,22 @@ class DraftSubmission extends ChangeNotifier {
     final key = '${attempt.origin}|${attempt.userId}';
     _unsaved[key] = attempt;
     final value = attempt.encode();
-    await store.write(attempt.origin, attempt.userId, value);
-    if (await store.read(attempt.origin, attempt.userId) != value) {
-      throw StateError('Không xác minh được dữ liệu lưu.');
+    if (_envelope == null) {
+      await store.write(attempt.origin, attempt.userId, value);
+      if (await store.read(attempt.origin, attempt.userId) != value) {
+        throw StateError('Không xác minh được dữ liệu lưu.');
+      }
+    } else {
+      await _persistEnvelope(
+        SaleEnvelope(
+          origin: attempt.origin,
+          userId: attempt.userId,
+          active: attempt,
+          confirmation: _envelope!.confirmation,
+          confirmHistory: _envelope!.confirmHistory,
+          journal: _envelope!.journal,
+        ),
+      );
     }
     _unsaved.remove(key);
   }
@@ -277,14 +371,36 @@ class DraftSubmission extends ChangeNotifier {
     _detail = null;
     _error = null;
     _state = DraftState.loading;
+    _envelope = null;
     _emit();
+    final pendingRecord = _unsavedRecords[_boundKey];
+    if (pendingRecord != null) {
+      await _persistEnvelope(
+        SaleEnvelope.decode(pendingRecord, origin, userId),
+      );
+    }
     final unsaved = _unsaved[_boundKey];
-    if (unsaved != null) await _persist(unsaved);
-    final raw = await store.read(origin, userId);
+    var raw = await store.read(origin, userId);
+    if (raw != null && (jsonDecode(raw) as Json)['version'] == 2) {
+      _envelope = SaleEnvelope.decode(raw, origin, userId);
+    }
+    if (unsaved != null) {
+      await _persist(unsaved);
+      raw = await store.read(origin, userId);
+    }
     if (raw == null) {
       _state = DraftState.editing;
     } else {
-      _attempt = DraftAttempt.decode(raw, origin, userId);
+      if ((jsonDecode(raw) as Json)['version'] == 2) {
+        _envelope = SaleEnvelope.decode(raw, origin, userId);
+        _attempt = _envelope!.active;
+      } else {
+        _attempt = DraftAttempt.decode(raw, origin, userId);
+      }
+      if (_attempt == null) {
+        _state = DraftState.editing;
+        return;
+      }
       _state = switch (_attempt!.state) {
         'known_id' => DraftState.knownId,
         'rejected' => DraftState.rejected,
@@ -421,6 +537,207 @@ class DraftSubmission extends ChangeNotifier {
     _emit();
     try {
       await _loadDetail();
+    } finally {
+      _finish();
+    }
+  }
+
+  Future<void> confirm(InitialPayment payment) async {
+    if (!canConfirm) return;
+    final active = _attempt!;
+    final reviewed = _detail!;
+    try {
+      payment.validate(reviewed);
+    } on FormatException catch (error) {
+      _error = ApiFailure(error.message);
+      _emit();
+      return;
+    }
+    busy = true;
+    _error = null;
+    _emit();
+    ConfirmAttempt? pending;
+    var sent = false;
+    try {
+      await _read(active.origin, active.userId);
+      if (!visible ||
+          auth.branch?.id != active.payload.branchId ||
+          _attempt?.attemptId != active.attemptId ||
+          _attempt?.orderId != active.orderId ||
+          confirmUncertain) {
+        return;
+      }
+      await _loadDetail();
+      if (_detail == null ||
+          !visible ||
+          auth.branch?.id != active.payload.branchId) {
+        return;
+      }
+      if (!sameReviewedSale(reviewed, _detail!)) {
+        _error = const ApiFailure(
+          'Chi tiết đã thay đổi. Xem lại dữ liệu mới trước khi xác nhận.',
+        );
+        return;
+      }
+      try {
+        payment.validate(_detail!);
+      } on FormatException catch (error) {
+        _error = ApiFailure(error.message);
+        return;
+      }
+      final random = Random.secure();
+      pending = ConfirmAttempt(
+        id: List.generate(
+          16,
+          (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join(),
+        orderId: active.orderId!,
+        payment: payment,
+        createdAt: DateTime.now().toUtc().toIso8601String(),
+        state: 'pending',
+      );
+      final old = _envelope;
+      await _persistEnvelope(
+        SaleEnvelope(
+          origin: active.origin,
+          userId: active.userId,
+          active: active,
+          confirmation: pending,
+          confirmHistory: [
+            ...?old?.confirmHistory,
+            if (old?.confirmation?.state == 'rejected')
+              old!.confirmation!.toJson(),
+          ],
+          journal: old?.journal ?? [],
+        ),
+      );
+      sent = true;
+      try {
+        await auth.confirmSalesDraft(
+          active.orderId!,
+          payment.toJson(),
+          userId: active.userId,
+          branchId: active.payload.branchId,
+        );
+        pending = pending.withState('acknowledged');
+      } on ApiFailure catch (error) {
+        _error = error;
+        pending = pending!.withState(
+          error.definiteRejection ? 'rejected' : 'unknown',
+        );
+      } catch (_) {
+        pending = pending!.withState('unknown');
+      }
+      await _persistEnvelope(
+        SaleEnvelope(
+          origin: active.origin,
+          userId: active.userId,
+          active: active,
+          confirmation: pending,
+          confirmHistory: _envelope!.confirmHistory,
+          journal: _envelope!.journal,
+        ),
+      );
+      _state = DraftState.knownId;
+      if (visible && auth.branch?.id == active.payload.branchId) {
+        final outcomeError = _error;
+        await _loadDetail();
+        _error ??= outcomeError;
+      }
+    } catch (_) {
+      if (!sent && pending != null && _unsavedRecords[_boundKey] != null) {
+        final saved = SaleEnvelope.decode(
+          _unsavedRecords[_boundKey]!,
+          active.origin,
+          active.userId,
+        );
+        _unsavedRecords[_boundKey!] = SaleEnvelope(
+          origin: active.origin,
+          userId: active.userId,
+          active: active,
+          confirmation: pending.withState('rejected'),
+          confirmHistory: saved.confirmHistory,
+          journal: saved.journal,
+        ).encode();
+      }
+      _blocked();
+    } finally {
+      _finish();
+    }
+  }
+
+  Future<void> complete() async {
+    if (!canComplete) return;
+    final active = _attempt!;
+    busy = true;
+    _emit();
+    try {
+      await _read(active.origin, active.userId);
+      if (!visible ||
+          auth.branch?.id != active.payload.branchId ||
+          _attempt?.attemptId != active.attemptId) {
+        return;
+      }
+      await _loadDetail();
+      final detail = _detail;
+      if (detail == null ||
+          detail.order.isDraft ||
+          !visible ||
+          auth.branch?.id != active.payload.branchId) {
+        return;
+      }
+      late final FixedDecimal total;
+      try {
+        total = _verifyInvoice(detail);
+      } on FormatException catch (error) {
+        _error = ApiFailure(error.message);
+        return;
+      }
+      final envelope = _envelope;
+      await _persistEnvelope(
+        SaleEnvelope(
+          origin: active.origin,
+          userId: active.userId,
+          journal: [
+            ...?envelope?.journal,
+            {
+              'attempt': jsonDecode(active.encode()),
+              'order_id': active.orderId,
+              'invoice_id': detail.order.invoiceId,
+              'status': 'confirmed',
+              'total': total.toString(),
+              'completed_at': DateTime.now().toUtc().toIso8601String(),
+              'confirmation': envelope?.confirmation?.toJson(),
+              'confirm_history': envelope?.confirmHistory ?? [],
+            },
+          ],
+        ),
+      );
+      _attempt = null;
+      _detail = null;
+      _error = null;
+      _state = DraftState.editing;
+    } catch (_) {
+      _blocked();
+    } finally {
+      _finish();
+    }
+  }
+
+  Future<void> migrateStorage() async {
+    if (busy || _currentKey == null) return;
+    busy = true;
+    final origin = auth.api.storageNamespace;
+    final userId = auth.profile!.userId;
+    try {
+      await _read(origin, userId);
+      if (_envelope == null) {
+        await _persistEnvelope(
+          SaleEnvelope(origin: origin, userId: userId, active: _attempt),
+        );
+      }
+    } catch (_) {
+      _blocked();
     } finally {
       _finish();
     }

@@ -168,6 +168,27 @@ class ApiClient {
     }
   }
 
+  Future<void> confirmSalesDraft(
+    Session session,
+    String id,
+    Map<String, dynamic> payment,
+  ) async {
+    jsonId(id);
+    final data = await _request(
+      'POST',
+      '/api/sales-orders/$id/confirm',
+      token: session.token,
+      body: payment,
+      confirmOperation: true,
+    );
+    if (data['status'] != 'confirmed' || data['id'] != id) {
+      throw const ApiFailure(
+        'Không xác minh được kết quả xác nhận.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _request(
     String method,
     String path, {
@@ -175,6 +196,7 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool loginOperation = false,
     bool draftOperation = false,
+    bool confirmOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -217,7 +239,7 @@ class ApiClient {
       };
       final errors = <String, List<String>>{};
       var definiteRejection = false;
-      if (draftOperation &&
+      if ((draftOperation || confirmOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -264,6 +286,19 @@ class ApiClient {
     if (draftOperation && response.statusCode != 201) {
       throw const ApiFailure(
         'Phản hồi tạo nháp không đúng contract.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+    if (confirmOperation &&
+        (response.statusCode != 200 ||
+            (response.headers['content-type'] ?? '')
+                    .split(';')
+                    .first
+                    .trim()
+                    .toLowerCase() !=
+                'application/json')) {
+      throw const ApiFailure(
+        'Phản hồi xác nhận không đúng contract.',
         kind: ApiFailureKind.invalidResponse,
       );
     }

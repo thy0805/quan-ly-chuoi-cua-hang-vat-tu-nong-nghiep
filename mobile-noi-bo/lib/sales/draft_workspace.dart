@@ -6,6 +6,7 @@ import '../auth/auth_controller.dart';
 import '../core/numbers.dart';
 import 'cart.dart';
 import 'draft_submission.dart';
+import 'confirm_workspace.dart';
 
 class DraftReview {
   DraftReview.fromCart(AuthController auth, SalesCart cart)
@@ -97,7 +98,7 @@ class _DraftWorkspaceState extends State<DraftWorkspace> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Tạo nháp chưa thu tiền, chưa trừ tồn và không giữ hàng.',
+                      'Đơn nháp chưa thu tiền, chưa trừ tồn và không giữ hàng. Chỉ xác nhận bán sau khi kiểm tra.',
                       style: TextStyle(height: 1.5, color: Colors.black54),
                     ),
                     const SizedBox(height: 20),
@@ -213,8 +214,18 @@ class _DraftWorkspaceState extends State<DraftWorkspace> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const Text(
-                              'Không thực hiện thanh toán hoặc xác nhận bán ở màn này.',
+                            FilledButton.icon(
+                              key: const ValueKey('review-confirm'),
+                              onPressed: drafts.busy
+                                  ? null
+                                  : () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            ConfirmWorkspace(controller: auth),
+                                      ),
+                                    ),
+                              icon: const Icon(Icons.receipt_long_outlined),
+                              label: const Text('Xem lại bán hàng / hóa đơn'),
                             ),
                           ],
                         ),
