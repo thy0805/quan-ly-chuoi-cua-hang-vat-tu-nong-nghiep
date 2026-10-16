@@ -5,6 +5,7 @@ import 'auth/auth_controller.dart';
 import 'sales/cart_workspace.dart';
 import 'sales/draft_workspace.dart';
 import 'sales/sales_workspace.dart';
+import 'transfers/transfer_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -435,6 +436,19 @@ class _Home extends StatelessWidget {
         onPressed: controller.busy ? null : controller.changeScope,
         icon: const Icon(Icons.swap_horiz),
         label: const Text('Đổi chi nhánh'),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        key: const Key('open-transfers'),
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => TransferWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.local_shipping_outlined),
+        label: const Text('Tra cứu điều chuyển'),
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(

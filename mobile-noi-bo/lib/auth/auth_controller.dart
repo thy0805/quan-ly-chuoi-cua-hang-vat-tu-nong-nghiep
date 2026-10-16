@@ -87,7 +87,15 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> readSales(String path) async {
+  Future<Map<String, dynamic>> readSales(String path) => _readBusiness(path);
+
+  Future<Map<String, dynamic>> readTransfers(String path) =>
+      _readBusiness(path, transfers: true);
+
+  Future<Map<String, dynamic>> _readBusiness(
+    String path, {
+    bool transfers = false,
+  }) async {
     final session = _session;
     final userId = profile?.userId;
     final revision = _authorizationRevision;
@@ -103,7 +111,9 @@ class AuthController extends ChangeNotifier {
       );
     }
     try {
-      final data = await api.readSales(session, path);
+      final data = transfers
+          ? await api.readTransfers(session, path)
+          : await api.readSales(session, path);
       if (_session != session ||
           profile?.userId != userId ||
           revision != _authorizationRevision ||

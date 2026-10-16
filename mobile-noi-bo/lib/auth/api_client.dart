@@ -146,6 +146,20 @@ class ApiClient {
     return _request('GET', path, token: session.token);
   }
 
+  Future<Map<String, dynamic>> readTransfers(Session session, String path) {
+    final page = RegExp(
+      r'^/api/stock-transfers\?page=[1-9][0-9]*&per_page=50$',
+    );
+    if (!page.hasMatch(path)) {
+      const prefix = '/api/stock-transfers/';
+      if (!path.startsWith(prefix)) {
+        throw ArgumentError('Chỉ đọc phiếu điều chuyển.');
+      }
+      jsonId(path.substring(prefix.length));
+    }
+    return _request('GET', path, token: session.token);
+  }
+
   Future<String> createSalesDraft(
     Session session,
     Map<String, dynamic> payload,
