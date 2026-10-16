@@ -11,6 +11,8 @@ import '../transfers/decision_store.dart';
 import '../transfers/decision_submission.dart';
 import '../transfers/dispatch_store.dart';
 import '../transfers/dispatch_submission.dart';
+import '../transfers/receive_store.dart';
+import '../transfers/receive_submission.dart';
 
 enum AuthStage { restoring, signedOut, chooseScope, ready, unavailable }
 
@@ -22,6 +24,7 @@ class AuthController extends ChangeNotifier {
     TransferAttemptStore? transferStore,
     TransferDecisionStore? decisionStore,
     TransferDispatchStore? dispatchStore,
+    TransferReceiveStore? receiveStore,
   }) {
     drafts = DraftSubmission(this, draftStore ?? SecureDraftAttemptStore());
     transfers = TransferSubmission(
@@ -31,6 +34,10 @@ class AuthController extends ChangeNotifier {
     transferDecisions = TransferDecisions(
       this,
       decisionStore ?? SecureTransferDecisionStore(),
+    );
+    transferReceives = TransferReceives(
+      this,
+      receiveStore ?? SecureTransferReceiveStore(),
     );
     transferDispatches = TransferDispatches(
       this,
@@ -44,6 +51,7 @@ class AuthController extends ChangeNotifier {
   late final TransferSubmission transfers;
   late final TransferDecisions transferDecisions;
   late final TransferDispatches transferDispatches;
+  late final TransferReceives transferReceives;
   AuthStage stage = AuthStage.restoring;
   Profile? profile;
   Session? _session;
@@ -75,6 +83,40 @@ class AuthController extends ChangeNotifier {
     }
     try {
       await api.dispatchTransfer(session, id, payload);
+    } on ApiFailure catch (error) {
+      if ((error.status == 401 || error.status == 403) &&
+          _session == session &&
+          profile?.userId == userId &&
+          revision == _authorizationRevision) {
+        await _rejectBusinessSession(error);
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> receiveTransfer(
+    String id,
+    Map<String, dynamic> payload, {
+    required String userId,
+    required String branchId,
+    required int revision,
+  }) async {
+    final session = _session;
+    if (session == null ||
+        !session.expiresAt.isAfter(DateTime.now()) ||
+        stage != AuthStage.ready ||
+        busy ||
+        profile?.userId != userId ||
+        branch?.id != branchId ||
+        revision != _authorizationRevision) {
+      throw const ApiFailure(
+        'Phiên hoặc chi nhánh đã đổi. Chưa gửi nhận hàng.',
+        status: 403,
+        definiteRejection: true,
+      );
+    }
+    try {
+      await api.receiveTransfer(session, id, payload);
     } on ApiFailure catch (error) {
       if ((error.status == 401 || error.status == 403) &&
           _session == session &&
@@ -407,6 +449,7 @@ class AuthController extends ChangeNotifier {
   @override
   void dispose() {
     transferDecisions.dispose();
+    transferReceives.dispose();
     transferDispatches.dispose();
     transfers.dispose();
     drafts.dispose();

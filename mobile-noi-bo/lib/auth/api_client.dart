@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'models.dart';
 import '../core/numbers.dart';
 import '../transfers/dispatch_models.dart';
+import '../transfers/receive_models.dart';
 
 enum ApiFailureKind {
   unauthenticated,
@@ -258,6 +259,33 @@ class ApiClient {
     }
   }
 
+  Future<void> receiveTransfer(
+    Session session,
+    String id,
+    Map<String, dynamic> payload,
+  ) async {
+    jsonId(id);
+    if (payload.length != 1 || !payload.containsKey('items')) {
+      throw const FormatException('Sai payload nhận hàng.');
+    }
+    final items = receiveLines(payload['items']);
+    final data = await _request(
+      'POST',
+      '/api/stock-transfers/$id/receive',
+      token: session.token,
+      body: {
+        'items': [for (final item in items) item.toJson()],
+      },
+      receiveOperation: true,
+    );
+    if (!{'received', 'discrepancy'}.contains(data['status'])) {
+      throw const ApiFailure(
+        'Chưa xác minh được kết quả nhận. Chỉ tải lại phiếu, không gửi lại.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<void> confirmSalesDraft(
     Session session,
     String id,
@@ -290,6 +318,7 @@ class ApiClient {
     bool transferOperation = false,
     bool decisionOperation = false,
     bool dispatchOperation = false,
+    bool receiveOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -336,7 +365,8 @@ class ApiClient {
               confirmOperation ||
               transferOperation ||
               decisionOperation ||
-              dispatchOperation) &&
+              dispatchOperation ||
+              receiveOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -399,7 +429,10 @@ class ApiClient {
         kind: ApiFailureKind.invalidResponse,
       );
     }
-    if ((confirmOperation || decisionOperation || dispatchOperation) &&
+    if ((confirmOperation ||
+            decisionOperation ||
+            dispatchOperation ||
+            receiveOperation) &&
         (response.statusCode != 200 ||
             (response.headers['content-type'] ?? '')
                     .split(';')

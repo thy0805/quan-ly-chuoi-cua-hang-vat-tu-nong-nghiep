@@ -6,6 +6,7 @@ import 'models.dart';
 import 'repository.dart';
 import 'decision_workspace.dart';
 import 'dispatch_workspace.dart';
+import 'receive_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -289,6 +290,27 @@ class _TransferWorkspaceState extends State<TransferWorkspace> {
             await Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => TransferDispatchWorkspace(
+                  controller: widget.controller,
+                  id: row.id,
+                ),
+              ),
+            );
+            if (mounted && _allowed) _load();
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (row.status == 'dispatched' &&
+          detail.canReceive &&
+          row.toBranchId == widget.controller.branch?.id) ...[
+        FilledButton.icon(
+          key: const Key('review-transfer-receive'),
+          icon: const Icon(Icons.move_to_inbox_outlined),
+          label: const Text('Kiểm tra và nhận hàng'),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TransferReceiveWorkspace(
                   controller: widget.controller,
                   id: row.id,
                 ),
