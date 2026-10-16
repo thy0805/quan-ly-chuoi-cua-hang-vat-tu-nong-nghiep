@@ -10,6 +10,7 @@ import 'transfers/request_workspace.dart';
 import 'transfers/decision_workspace.dart';
 import 'transfers/dispatch_workspace.dart';
 import 'transfers/receive_workspace.dart';
+import 'transfers/reconcile_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -509,6 +510,19 @@ class _Home extends StatelessWidget {
         icon: const Icon(Icons.move_to_inbox_outlined),
         label: const Text('Kiểm tra thao tác nhận điều chuyển'),
       ),
+      OutlinedButton.icon(
+        key: const Key('open-transfer-reconcile'),
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      TransferReconcileWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.rule_folder_outlined),
+        label: const Text('Kiểm tra thao tác đối soát điều chuyển'),
+      ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
         onPressed: controller.busy
@@ -528,7 +542,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Có thể bán hàng, xem hóa đơn nội bộ, tra cứu, tạo, duyệt hoặc từ chối, xuất và nhận điều chuyển theo quyền được cấp. Thu nợ sau bán và đối soát điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể bán hàng, xem hóa đơn nội bộ, tra cứu, tạo, duyệt hoặc từ chối, xuất, nhận và đối soát điều chuyển theo quyền được cấp. Thu nợ sau bán chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],

@@ -8,6 +8,7 @@ import 'models.dart';
 import '../core/numbers.dart';
 import '../transfers/dispatch_models.dart';
 import '../transfers/receive_models.dart';
+import '../transfers/reconcile_models.dart';
 
 enum ApiFailureKind {
   unauthenticated,
@@ -286,6 +287,37 @@ class ApiClient {
     }
   }
 
+  Future<void> reconcileTransfer(
+    Session session,
+    String id,
+    Map<String, dynamic> payload,
+  ) async {
+    jsonId(id);
+    if (payload.length != 2 ||
+        !payload.containsKey('items') ||
+        !payload.containsKey('reason')) {
+      throw const FormatException('Sai payload đối soát.');
+    }
+    final items = reconcileLines(payload['items']);
+    final reason = reconcileReason(payload['reason'] as String);
+    final data = await _request(
+      'POST',
+      '/api/stock-transfers/$id/reconcile',
+      token: session.token,
+      body: {
+        'reason': reason,
+        'items': [for (final item in items) item.toJson()],
+      },
+      reconcileOperation: true,
+    );
+    if (data['status'] != 'reconciled') {
+      throw const ApiFailure(
+        'Chưa xác minh được kết quả đối soát. Chỉ tải lại phiếu, không gửi lại.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<void> confirmSalesDraft(
     Session session,
     String id,
@@ -319,6 +351,7 @@ class ApiClient {
     bool decisionOperation = false,
     bool dispatchOperation = false,
     bool receiveOperation = false,
+    bool reconcileOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -366,7 +399,8 @@ class ApiClient {
               transferOperation ||
               decisionOperation ||
               dispatchOperation ||
-              receiveOperation) &&
+              receiveOperation ||
+              reconcileOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -432,7 +466,8 @@ class ApiClient {
     if ((confirmOperation ||
             decisionOperation ||
             dispatchOperation ||
-            receiveOperation) &&
+            receiveOperation ||
+            reconcileOperation) &&
         (response.statusCode != 200 ||
             (response.headers['content-type'] ?? '')
                     .split(';')

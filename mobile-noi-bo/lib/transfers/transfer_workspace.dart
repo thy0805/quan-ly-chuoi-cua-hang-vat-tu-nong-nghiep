@@ -7,6 +7,7 @@ import 'repository.dart';
 import 'decision_workspace.dart';
 import 'dispatch_workspace.dart';
 import 'receive_workspace.dart';
+import 'reconcile_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -311,6 +312,27 @@ class _TransferWorkspaceState extends State<TransferWorkspace> {
             await Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => TransferReceiveWorkspace(
+                  controller: widget.controller,
+                  id: row.id,
+                ),
+              ),
+            );
+            if (mounted && _allowed) _load();
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (row.status == 'discrepancy' &&
+          detail.canReconcile &&
+          row.belongsTo(widget.controller.branch!.id)) ...[
+        FilledButton.icon(
+          key: const Key('review-transfer-reconcile'),
+          icon: const Icon(Icons.rule_folder_outlined),
+          label: const Text('Kiểm tra và đối soát'),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TransferReconcileWorkspace(
                   controller: widget.controller,
                   id: row.id,
                 ),

@@ -13,6 +13,8 @@ import '../transfers/dispatch_store.dart';
 import '../transfers/dispatch_submission.dart';
 import '../transfers/receive_store.dart';
 import '../transfers/receive_submission.dart';
+import '../transfers/reconcile_store.dart';
+import '../transfers/reconcile_submission.dart';
 
 enum AuthStage { restoring, signedOut, chooseScope, ready, unavailable }
 
@@ -25,6 +27,7 @@ class AuthController extends ChangeNotifier {
     TransferDecisionStore? decisionStore,
     TransferDispatchStore? dispatchStore,
     TransferReceiveStore? receiveStore,
+    TransferReconcileStore? reconcileStore,
   }) {
     drafts = DraftSubmission(this, draftStore ?? SecureDraftAttemptStore());
     transfers = TransferSubmission(
@@ -34,6 +37,10 @@ class AuthController extends ChangeNotifier {
     transferDecisions = TransferDecisions(
       this,
       decisionStore ?? SecureTransferDecisionStore(),
+    );
+    transferReconciliations = TransferReconciliations(
+      this,
+      reconcileStore ?? SecureTransferReconcileStore(),
     );
     transferReceives = TransferReceives(
       this,
@@ -52,6 +59,7 @@ class AuthController extends ChangeNotifier {
   late final TransferDecisions transferDecisions;
   late final TransferDispatches transferDispatches;
   late final TransferReceives transferReceives;
+  late final TransferReconciliations transferReconciliations;
   AuthStage stage = AuthStage.restoring;
   Profile? profile;
   Session? _session;
@@ -117,6 +125,40 @@ class AuthController extends ChangeNotifier {
     }
     try {
       await api.receiveTransfer(session, id, payload);
+    } on ApiFailure catch (error) {
+      if ((error.status == 401 || error.status == 403) &&
+          _session == session &&
+          profile?.userId == userId &&
+          revision == _authorizationRevision) {
+        await _rejectBusinessSession(error);
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> reconcileTransfer(
+    String id,
+    Map<String, dynamic> payload, {
+    required String userId,
+    required String branchId,
+    required int revision,
+  }) async {
+    final session = _session;
+    if (session == null ||
+        !session.expiresAt.isAfter(DateTime.now()) ||
+        stage != AuthStage.ready ||
+        busy ||
+        profile?.userId != userId ||
+        branch?.id != branchId ||
+        revision != _authorizationRevision) {
+      throw const ApiFailure(
+        'Phiên hoặc chi nhánh đã đổi. Chưa gửi đối soát.',
+        status: 403,
+        definiteRejection: true,
+      );
+    }
+    try {
+      await api.reconcileTransfer(session, id, payload);
     } on ApiFailure catch (error) {
       if ((error.status == 401 || error.status == 403) &&
           _session == session &&
@@ -449,6 +491,7 @@ class AuthController extends ChangeNotifier {
   @override
   void dispose() {
     transferDecisions.dispose();
+    transferReconciliations.dispose();
     transferReceives.dispose();
     transferDispatches.dispose();
     transfers.dispose();
