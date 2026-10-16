@@ -150,7 +150,7 @@ class ApiClient {
     final page = RegExp(
       r'^/api/stock-transfers\?page=[1-9][0-9]*&per_page=50$',
     );
-    if (!page.hasMatch(path)) {
+    if (path != '/api/stock-transfers/options' && !page.hasMatch(path)) {
       const prefix = '/api/stock-transfers/';
       if (!path.startsWith(prefix)) {
         throw ArgumentError('Chỉ đọc phiếu điều chuyển.');
@@ -177,6 +177,27 @@ class ApiClient {
     } catch (_) {
       throw const ApiFailure(
         'Không xác minh được ID đơn nháp từ phản hồi.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
+  Future<String> createTransferRequest(
+    Session session,
+    Map<String, dynamic> payload,
+  ) async {
+    final data = await _request(
+      'POST',
+      '/api/stock-transfers',
+      token: session.token,
+      body: payload,
+      transferOperation: true,
+    );
+    try {
+      return jsonId(data['id']);
+    } catch (_) {
+      throw const ApiFailure(
+        'Không xác minh được ID yêu cầu điều chuyển. Không gửi lại.',
         kind: ApiFailureKind.invalidResponse,
       );
     }
@@ -211,6 +232,7 @@ class ApiClient {
     bool loginOperation = false,
     bool draftOperation = false,
     bool confirmOperation = false,
+    bool transferOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -253,7 +275,7 @@ class ApiClient {
       };
       final errors = <String, List<String>>{};
       var definiteRejection = false;
-      if ((draftOperation || confirmOperation) &&
+      if ((draftOperation || confirmOperation || transferOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -300,6 +322,19 @@ class ApiClient {
     if (draftOperation && response.statusCode != 201) {
       throw const ApiFailure(
         'Phản hồi tạo nháp không đúng contract.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+    if (transferOperation &&
+        (response.statusCode != 201 ||
+            (response.headers['content-type'] ?? '')
+                    .split(';')
+                    .first
+                    .trim()
+                    .toLowerCase() !=
+                'application/json')) {
+      throw const ApiFailure(
+        'Phản hồi tạo điều chuyển không đúng contract. Không gửi lại.',
         kind: ApiFailureKind.invalidResponse,
       );
     }

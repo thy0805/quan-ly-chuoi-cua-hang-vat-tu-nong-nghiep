@@ -6,6 +6,7 @@ import 'sales/cart_workspace.dart';
 import 'sales/draft_workspace.dart';
 import 'sales/sales_workspace.dart';
 import 'transfers/transfer_workspace.dart';
+import 'transfers/request_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -452,6 +453,20 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
+        key: const Key('open-transfer-request'),
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      TransferRequestWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.add_road_outlined),
+        label: const Text('Tạo yêu cầu điều chuyển'),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
         onPressed: controller.busy
             ? null
             : () => Navigator.of(context).push(
@@ -469,7 +484,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Có thể chuẩn bị giỏ, tạo nháp, xác nhận bán và xem hóa đơn nội bộ. Thu nợ sau bán và điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể bán hàng, xem hóa đơn nội bộ, tra cứu và tạo yêu cầu điều chuyển. Thu nợ sau bán, duyệt, xuất và nhận điều chuyển chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],

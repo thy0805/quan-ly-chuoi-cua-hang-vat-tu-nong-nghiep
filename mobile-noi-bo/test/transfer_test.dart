@@ -159,7 +159,7 @@ void main() {
   });
 
   test(
-    'client route allowlist blocks options, actions, bad IDs and injected query',
+    'client route allowlist blocks actions, bad IDs and injected options query',
     () async {
       var count = 0;
       final client = auth.testApi((_) {
@@ -168,7 +168,7 @@ void main() {
       });
       addTearDown(client.close);
       for (final path in [
-        '/api/stock-transfers/options',
+        '/api/stock-transfers/options?branch_id=2',
         '/api/stock-transfers/1/approve',
         '/api/sales-orders',
         '/api/stock-transfers/9223372036854775808',
