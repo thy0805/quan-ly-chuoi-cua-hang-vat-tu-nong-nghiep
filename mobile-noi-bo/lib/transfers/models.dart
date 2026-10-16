@@ -138,7 +138,12 @@ class TransferDetail {
       rejectionReason =
           (json['data'] as TransferJson)['rejection_reason'] as String?,
       reconciliationReason =
-          (json['data'] as TransferJson)['reconciliation_reason'] as String? {
+          (json['data'] as TransferJson)['reconciliation_reason'] as String?,
+      canApprove = (json['data'] as TransferJson)['can_approve'] == true,
+      canReject = (json['data'] as TransferJson)['can_reject'] == true,
+      requestedBy = (json['data'] as TransferJson)['requested_by'] == null
+          ? null
+          : jsonId((json['data'] as TransferJson)['requested_by']) {
     if (items.map((line) => line.id).toSet().length != items.length ||
         items.map((line) => line.lotId).toSet().length != items.length) {
       throw const FormatException('Trùng dòng vật tư.');
@@ -149,6 +154,8 @@ class TransferDetail {
   final List<TransferLine> items;
   final Map<String, DateTime> times;
   final String? rejectionReason, reconciliationReason;
+  final bool canApprove, canReject;
+  final String? requestedBy;
 }
 
 String transferDate(DateTime date) {

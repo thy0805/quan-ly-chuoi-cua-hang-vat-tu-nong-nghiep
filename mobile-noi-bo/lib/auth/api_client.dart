@@ -203,6 +203,33 @@ class ApiClient {
     }
   }
 
+  Future<void> decideTransfer(
+    Session session,
+    String id,
+    String action, {
+    String? reason,
+  }) async {
+    jsonId(id);
+    if (!{'approve', 'reject'}.contains(action) ||
+        action == 'approve' && reason != null ||
+        reason != null && reason.runes.length > 1000) {
+      throw ArgumentError('Thao tác điều chuyển không hợp lệ.');
+    }
+    final data = await _request(
+      'POST',
+      '/api/stock-transfers/$id/$action',
+      token: session.token,
+      body: action == 'reject' ? {'reason': reason} : <String, dynamic>{},
+      decisionOperation: true,
+    );
+    if (data['status'] != (action == 'approve' ? 'approved' : 'rejected')) {
+      throw const ApiFailure(
+        'Chưa xác minh được kết quả xử lý. Chỉ tải lại phiếu, không gửi lại.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<void> confirmSalesDraft(
     Session session,
     String id,
@@ -233,6 +260,7 @@ class ApiClient {
     bool draftOperation = false,
     bool confirmOperation = false,
     bool transferOperation = false,
+    bool decisionOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -275,7 +303,10 @@ class ApiClient {
       };
       final errors = <String, List<String>>{};
       var definiteRejection = false;
-      if ((draftOperation || confirmOperation || transferOperation) &&
+      if ((draftOperation ||
+              confirmOperation ||
+              transferOperation ||
+              decisionOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -338,7 +369,7 @@ class ApiClient {
         kind: ApiFailureKind.invalidResponse,
       );
     }
-    if (confirmOperation &&
+    if ((confirmOperation || decisionOperation) &&
         (response.statusCode != 200 ||
             (response.headers['content-type'] ?? '')
                     .split(';')

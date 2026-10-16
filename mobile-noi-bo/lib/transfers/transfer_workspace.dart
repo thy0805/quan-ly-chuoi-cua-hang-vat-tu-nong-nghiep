@@ -4,6 +4,7 @@ import '../auth/api_client.dart';
 import '../auth/auth_controller.dart';
 import 'models.dart';
 import 'repository.dart';
+import 'decision_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -276,6 +277,28 @@ class _TransferWorkspaceState extends State<TransferWorkspace> {
       'reconciled_at': 'Đối soát lúc',
     };
     return [
+      if (row.status == 'requested' &&
+          detail.requestedBy != null &&
+          detail.requestedBy != widget.controller.profile?.userId &&
+          (detail.canApprove || detail.canReject)) ...[
+        FilledButton.icon(
+          key: const Key('review-transfer-decision'),
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text('Duyệt / từ chối yêu cầu'),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TransferDecisionWorkspace(
+                  controller: widget.controller,
+                  id: row.id,
+                ),
+              ),
+            );
+            if (mounted && _allowed) _load();
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
       _Panel(
         children: [
           Text(

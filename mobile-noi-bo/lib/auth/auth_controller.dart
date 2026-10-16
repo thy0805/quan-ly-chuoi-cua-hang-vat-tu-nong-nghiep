@@ -7,6 +7,8 @@ import '../sales/draft_attempt_store.dart';
 import '../sales/draft_submission.dart';
 import '../transfers/request_store.dart';
 import '../transfers/request_submission.dart';
+import '../transfers/decision_store.dart';
+import '../transfers/decision_submission.dart';
 
 enum AuthStage { restoring, signedOut, chooseScope, ready, unavailable }
 
@@ -16,11 +18,16 @@ class AuthController extends ChangeNotifier {
     this.store, {
     DraftAttemptStore? draftStore,
     TransferAttemptStore? transferStore,
+    TransferDecisionStore? decisionStore,
   }) {
     drafts = DraftSubmission(this, draftStore ?? SecureDraftAttemptStore());
     transfers = TransferSubmission(
       this,
       transferStore ?? SecureTransferAttemptStore(),
+    );
+    transferDecisions = TransferDecisions(
+      this,
+      decisionStore ?? SecureTransferDecisionStore(),
     );
   }
 
@@ -28,6 +35,7 @@ class AuthController extends ChangeNotifier {
   final SessionStore store;
   late final DraftSubmission drafts;
   late final TransferSubmission transfers;
+  late final TransferDecisions transferDecisions;
   AuthStage stage = AuthStage.restoring;
   Profile? profile;
   Session? _session;
@@ -35,6 +43,41 @@ class AuthController extends ChangeNotifier {
   bool busy = false;
   int _authorizationRevision = 0;
   int get authorizationRevision => _authorizationRevision;
+
+  Future<void> decideTransfer(
+    String id,
+    String action, {
+    String? reason,
+    required String userId,
+    required String branchId,
+    required int revision,
+  }) async {
+    final session = _session;
+    if (session == null ||
+        !session.expiresAt.isAfter(DateTime.now()) ||
+        stage != AuthStage.ready ||
+        busy ||
+        profile?.userId != userId ||
+        branch?.id != branchId ||
+        revision != _authorizationRevision) {
+      throw const ApiFailure(
+        'Phiên hoặc chi nhánh đã đổi. Chưa gửi thao tác.',
+        status: 403,
+        definiteRejection: true,
+      );
+    }
+    try {
+      await api.decideTransfer(session, id, action, reason: reason);
+    } on ApiFailure catch (error) {
+      if ((error.status == 401 || error.status == 403) &&
+          _session == session &&
+          profile?.userId == userId &&
+          revision == _authorizationRevision) {
+        await _rejectBusinessSession(error);
+      }
+      rethrow;
+    }
+  }
 
   Future<String> createTransferRequest(
     Map<String, dynamic> payload, {
@@ -321,6 +364,7 @@ class AuthController extends ChangeNotifier {
 
   @override
   void dispose() {
+    transferDecisions.dispose();
     transfers.dispose();
     drafts.dispose();
     api.close();
