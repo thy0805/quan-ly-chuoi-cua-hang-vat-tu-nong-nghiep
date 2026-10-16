@@ -8,6 +8,7 @@ import 'sales/sales_workspace.dart';
 import 'transfers/transfer_workspace.dart';
 import 'transfers/request_workspace.dart';
 import 'transfers/decision_workspace.dart';
+import 'transfers/dispatch_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -482,6 +483,20 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
+        key: const Key('open-transfer-dispatch'),
+        onPressed: controller.busy
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      TransferDispatchWorkspace(controller: controller),
+                ),
+              ),
+        icon: const Icon(Icons.outbox_outlined),
+        label: const Text('Kiểm tra thao tác xuất điều chuyển'),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
         onPressed: controller.busy
             ? null
             : () => Navigator.of(context).push(
@@ -499,7 +514,7 @@ class _Home extends StatelessWidget {
       ),
       const SizedBox(height: 20),
       const Text(
-        'Có thể bán hàng, xem hóa đơn nội bộ, tra cứu, tạo và duyệt hoặc từ chối yêu cầu điều chuyển theo quyền được cấp. Thu nợ sau bán, xuất và nhận điều chuyển chưa được mở trong phiên bản này.',
+        'Có thể bán hàng, xem hóa đơn nội bộ, tra cứu, tạo, duyệt hoặc từ chối và xuất điều chuyển theo quyền được cấp. Thu nợ sau bán, nhận hàng và đối soát điều chuyển chưa được mở trong phiên bản này.',
         style: TextStyle(height: 1.5, color: Colors.black54),
       ),
     ],

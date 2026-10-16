@@ -141,6 +141,7 @@ class TransferDetail {
           (json['data'] as TransferJson)['reconciliation_reason'] as String?,
       canApprove = (json['data'] as TransferJson)['can_approve'] == true,
       canReject = (json['data'] as TransferJson)['can_reject'] == true,
+      canDispatch = (json['data'] as TransferJson)['can_dispatch'] == true,
       requestedBy = (json['data'] as TransferJson)['requested_by'] == null
           ? null
           : jsonId((json['data'] as TransferJson)['requested_by']) {
@@ -154,7 +155,7 @@ class TransferDetail {
   final List<TransferLine> items;
   final Map<String, DateTime> times;
   final String? rejectionReason, reconciliationReason;
-  final bool canApprove, canReject;
+  final bool canApprove, canReject, canDispatch;
   final String? requestedBy;
 }
 

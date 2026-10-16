@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'models.dart';
 import '../core/numbers.dart';
+import '../transfers/dispatch_models.dart';
 
 enum ApiFailureKind {
   unauthenticated,
@@ -230,6 +231,33 @@ class ApiClient {
     }
   }
 
+  Future<void> dispatchTransfer(
+    Session session,
+    String id,
+    Map<String, dynamic> payload,
+  ) async {
+    jsonId(id);
+    if (payload.length != 1 || !payload.containsKey('items')) {
+      throw const FormatException('Sai payload xuất kho.');
+    }
+    final items = dispatchLines(payload['items']);
+    final data = await _request(
+      'POST',
+      '/api/stock-transfers/$id/dispatch',
+      token: session.token,
+      body: {
+        'items': [for (final item in items) item.toJson()],
+      },
+      dispatchOperation: true,
+    );
+    if (data['status'] != 'dispatched') {
+      throw const ApiFailure(
+        'Chưa xác minh được kết quả xuất. Chỉ tải lại phiếu, không gửi lại.',
+        kind: ApiFailureKind.invalidResponse,
+      );
+    }
+  }
+
   Future<void> confirmSalesDraft(
     Session session,
     String id,
@@ -261,6 +289,7 @@ class ApiClient {
     bool confirmOperation = false,
     bool transferOperation = false,
     bool decisionOperation = false,
+    bool dispatchOperation = false,
   }) async {
     final request = http.Request(method, _base.resolve(path))
       ..followRedirects = false;
@@ -306,7 +335,8 @@ class ApiClient {
       if ((draftOperation ||
               confirmOperation ||
               transferOperation ||
-              decisionOperation) &&
+              decisionOperation ||
+              dispatchOperation) &&
           {401, 403, 422}.contains(response.statusCode) &&
           (response.headers['content-type'] ?? '')
                   .split(';')
@@ -369,7 +399,7 @@ class ApiClient {
         kind: ApiFailureKind.invalidResponse,
       );
     }
-    if ((confirmOperation || decisionOperation) &&
+    if ((confirmOperation || decisionOperation || dispatchOperation) &&
         (response.statusCode != 200 ||
             (response.headers['content-type'] ?? '')
                     .split(';')

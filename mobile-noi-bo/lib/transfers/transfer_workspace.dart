@@ -5,6 +5,7 @@ import '../auth/auth_controller.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'decision_workspace.dart';
+import 'dispatch_workspace.dart';
 
 const _ink = Color(0xFF153F36);
 
@@ -277,6 +278,27 @@ class _TransferWorkspaceState extends State<TransferWorkspace> {
       'reconciled_at': 'Đối soát lúc',
     };
     return [
+      if (row.status == 'approved' &&
+          detail.canDispatch &&
+          row.fromBranchId == widget.controller.branch?.id) ...[
+        FilledButton.icon(
+          key: const Key('review-transfer-dispatch'),
+          icon: const Icon(Icons.outbox_outlined),
+          label: const Text('Kiểm tra và xuất kho'),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TransferDispatchWorkspace(
+                  controller: widget.controller,
+                  id: row.id,
+                ),
+              ),
+            );
+            if (mounted && _allowed) _load();
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
       if (row.status == 'requested' &&
           detail.requestedBy != null &&
           detail.requestedBy != widget.controller.profile?.userId &&
